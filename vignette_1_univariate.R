@@ -583,3 +583,100 @@ for (i in 1:2){
   plot(xycoords[,1], xycoords[,2], col = cols[value], pch = 16,
        main = c("x", "y")[i], asp = 1)
 }
+
+
+## Construct spatial HMSC model ##
+
+#define study design: each sampling unit has spatial coordinates
+studyDesign = data.frame(sample = sample.id)
+
+#define spatial random level using coordinates
+rL = HmscRandomLevel(sData = xycoords)
+
+#fit spatial HMSC model
+m = Hmsc(Y = Y,
+         XData = XData,
+         XFormula = ~x,
+         studyDesign = studyDesign,
+         ranLevels = list(sample = rL))
+
+
+## Fit spatial HMSC model ##
+
+m = sampleMcmc(m, thin = thin,
+               samples = samples,
+               transient = transient,
+               nChains = nChains,
+               nParallel = nChains,
+               verbose = verbose)
+
+
+## Evaluate explanatory power ##
+
+preds = computePredictedValues(m)
+MF = evaluateModelFit(hM = m, predY = preds)
+MF$R2
+
+
+## Cross-validation by sampling unit ##
+
+partition = createPartition(m, nfolds = 2, column = "sample")
+
+preds = computePredictedValues(m,
+                               partition = partition,
+                               nParallel = nChains)
+
+MF = evaluateModelFit(hM = m, predY = preds)
+MF$R2
+
+
+## Check MCMC convergence of spatial scale parameter ##
+
+#convert fitted model output into coda format for inspection
+mpost = convertToCodaObject(m)
+
+#trace plot for estimated spatial scale parameter
+plot(mpost$Alpha[[1]])
+
+#good trace plot: chains overlap, mix well, and show no trend across iterations
+
+
+## Summarise posterior estimate of spatial scale ##
+
+summary(mpost$Alpha[[1]])
+
+#Alpha[[1]] represents the spatial scale of the random effect
+#larger values mean spatial correlation decays more slowly with distance
+#smaller values mean spatial correlation is more local
+
+
+## Fit non-spatial model for comparison ##
+
+#fit HMSC model without spatial random effect
+m = Hmsc(Y = Y,
+         XData = XData,
+         XFormula = ~x)
+
+#run MCMC sampling
+m = sampleMcmc(m, thin = thin,
+               samples = samples,
+               transient = transient,
+               nChains = nChains,
+               nParallel = nChains,
+               verbose = verbose)
+
+
+## Evaluate explanatory power (no spatial structure) ##
+
+#predict fitted values using training data
+preds = computePredictedValues(m)
+
+#compute model fit statistics
+MF = evaluateModelFit(hM = m, predY = preds)
+
+#extract explanatory R2
+MF$R2
+
+#expected: explanatory power lower than spatial model
+
+
