@@ -4,6 +4,10 @@ library(Hmsc); library(corrplot)
 #set seed
 set.seed(1)
 
+#controls how much progress information is printed during MCMC sampling
+#verbose = 0 suppresses output (useful for scripts and vignette replication)
+#verbose = 1 prints sampling progress (useful for long model runs)
+verbose = 0
 
 ## Generate simulated community data ##
 
@@ -33,26 +37,6 @@ colnames(Y) = paste0("sp", 1:5)         #species names
 #species 5 does not respond to either predictor
 
 
-## Construct multivariate HMSC model ##
-
-#fit HMSC model with additive effects of x1 and x2 on all species
-m = Hmsc(Y = Y, XData = XData, XFormula = ~x1+x2)
-
-#the same environmental predictors are used for all species
-#HMSC will estimate species-specific intercepts and slopes
-
-
-## Fit multivariate HMSC model ##
-
-m = sampleMcmc(m, thin = thin,
-               samples = samples,
-               transient = transient,
-               nChains = nChains,
-               verbose = verbose)
-
-#model now contains posterior samples of species-specific regression coefficients
-
-
 ## Define MCMC sampling settings ##
 
 #number of independent MCMC chains
@@ -77,6 +61,26 @@ if (test.run){
   transient = 500*thin             #burn-in period
   verbose = 0                      #suppress progress output
 }
+
+
+## Construct multivariate HMSC model ##
+
+#fit HMSC model with additive effects of x1 and x2 on all species
+m = Hmsc(Y = Y, XData = XData, XFormula = ~x1+x2)
+
+#the same environmental predictors are used for all species
+#HMSC will estimate species-specific intercepts and slopes
+
+
+## Fit multivariate HMSC model ##
+
+m = sampleMcmc(m, thin = thin,
+               samples = samples,
+               transient = transient,
+               nChains = nChains,
+               verbose = verbose)
+
+#model now contains posterior samples of species-specific regression coefficients
 
 
 ## Fit multivariate HMSC model ##
@@ -115,6 +119,9 @@ gelman.diag(mpost$Beta, multivariate = FALSE)$psrf
 
 ## Visualise convergence diagnostics ##
 
+#store current plotting settings
+oldpar = par(no.readonly = TRUE)
+
 #plot distributions of effective sample sizes and psrf values
 par(mfrow = c(1,2))
 
@@ -123,6 +130,9 @@ hist(effectiveSize(mpost$Beta),
 
 hist(gelman.diag(mpost$Beta, multivariate = FALSE)$psrf,
      main = "psrf(beta)")
+
+#restore plotting settings
+par(oldpar)
 
 
 ## Evaluate explanatory power of multivariate model ##
@@ -256,7 +266,7 @@ plotBeta(m,
          param = "Support",
          supportLevel = 0.95)
 
-#Beta estimates should remain consistent with the model without random effects
+ #Beta estimates should remain consistent with the model without random effects
 
 
 ## Extract species-to-species residual correlations ##
@@ -283,3 +293,184 @@ corrplot(toPlot,
 #only strongly supported residual correlations are shown
 #diagonal values are always 1 (within-species correlation)
 #off-diagonal values represent residual associations between species
+
+
+## Fit reduced-covariate model ##
+
+#fit HMSC model using only x1 as predictor
+m = Hmsc(Y = Y,
+         XData = XData,
+         XFormula = ~x1,
+         studyDesign = studyDesign,
+         ranLevels = list(sample = rL))
+
+#run MCMC sampling
+m = sampleMcmc(m,
+               thin = thin,
+               samples = samples,
+               transient = transient,
+               nChains = nChains,
+               nParallel = nChains,
+               verbose = verbose)
+
+
+## Extract posterior estimates of regression coefficients (Beta) ##
+
+#retrieve posterior summaries of Beta parameters
+postBeta = getPostEstimate(m, parName = "Beta")
+
+#plot support for each coefficient in reduced-covariate model
+plotBeta(m,
+         post = postBeta,
+         param = "Support",
+         supportLevel = 0.95)
+
+#the model still recovers the effect of x1
+#but cannot estimate the effect of x2 because x2 was omitted from the model
+
+
+## Extract residual species associations after removing predictor x2 ##
+
+#compute residual association matrix
+OmegaCor = computeAssociations(m)
+
+#set posterior support threshold
+supportLevel = 0.95
+
+#retain only strongly supported correlations
+toPlot =
+  ((OmegaCor[[1]]$support > supportLevel) +
+     (OmegaCor[[1]]$support < (1 - supportLevel)) > 0) *
+  OmegaCor[[1]]$mean
+
+#plot residual correlation matrix
+corrplot(toPlot,
+         method = "color",
+         col = colorRampPalette(c("blue","white","red"))(200),
+         title = paste("random effect level:", m$rLNames[1]),
+         mar = c(0,0,1,0))
+
+#residual correlations appear because predictor x2 was omitted from the model
+#species with similar responses to x2 now appear positively correlated
+#species with opposite responses to x2 now appear negatively correlated
+#species 5 shows no correlations because it does not respond to x2
+
+
+## Evaluate explanatory power of reduced model ##
+
+#predict fitted values using the same data used for model fitting
+preds = computePredictedValues(m)
+
+#evaluate explanatory power
+evaluateModelFit(hM = m, predY = preds)
+
+#explanatory R2 may remain high because latent variables can absorb the effect
+#of the missing predictor x2 in the training data
+
+
+## Evaluate predictive power of reduced model by cross-validation ##
+
+#predict responses for held-out data
+preds = computePredictedValues(m,
+                               partition = partition,
+                               nParallel = nChains)
+
+#evaluate predictive power
+evaluateModelFit(hM = m, predY = preds)
+
+#predictive R2 is lower because the missing predictor x2 cannot be reconstructed
+#as well for held-out sampling units
+
+# latent factors can make a misspecified model look good in-sample,
+# but cross-validation reveals the missing predictor problem
+
+
+## Evaluate conditional predictive power using species associations ##
+
+#predict species responses using both environmental predictors
+#and observed occurrences of other species
+
+preds = computePredictedValues(
+  m,
+  partition = partition,
+  partition.sp = c(1,2,3,4,5),
+  mcmcStep = 10,
+  nParallel = nChains
+)
+
+#evaluate conditional predictive performance
+evaluateModelFit(hM = m, predY = preds)
+
+#predictive performance improves because residual species associations
+#contain information about the missing predictor x2
+
+#this demonstrates how joint SDMs can use co-occurrence structure
+#to improve predictions when environmental predictors are incomplete
+
+
+## Evaluate conditional predictive power using species associations ##
+
+#predict species responses using both environmental predictors
+#and observed occurrences of other species
+
+preds = computePredictedValues(
+  m,
+  partition = partition,
+  partition.sp = c(1,2,3,4,5),
+  mcmcStep = 10,
+  nParallel = nChains
+)
+
+#evaluate conditional predictive performance
+evaluateModelFit(hM = m, predY = preds)
+
+#predictive performance improves because residual species associations
+#contain information about the missing predictor x2
+
+#this demonstrates how joint SDMs can use co-occurrence structure
+#to improve predictions when environmental predictors are incomplete
+
+
+## Model-based ordination using latent variables ##
+
+#set number of latent factors to exactly two
+rL$nfMin = 2
+rL$nfMax = 2
+
+#fit intercept-only model (no environmental predictors)
+m = Hmsc(Y = Y,
+         XData = XData,
+         XFormula = ~1,
+         studyDesign = studyDesign,
+         ranLevels = list(sample = rL))
+
+#run MCMC sampling
+m = sampleMcmc(m,
+               thin = thin,
+               samples = samples,
+               transient = transient,
+               nChains = nChains,
+               nParallel = nChains,
+               verbose = verbose)
+
+
+## Extract latent variable loadings ##
+
+#site loadings (positions of sampling units in latent space)
+etaPost = getPostEstimate(m, "Eta")
+
+#species loadings (responses of species to latent variables)
+lambdaPost = getPostEstimate(m, "Lambda")
+
+
+## Plot ordination biplot ##
+
+biPlot(m,
+       etaPost = etaPost,
+       lambdaPost = lambdaPost,
+       factors = c(1,2),
+       "x2")
+
+#latent variables recover the missing predictor x2
+#sites are ordered along the latent gradient corresponding to x2
+#species with similar responses to x2 appear close together
