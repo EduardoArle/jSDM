@@ -474,3 +474,109 @@ biPlot(m,
 #latent variables recover the missing predictor x2
 #sites are ordered along the latent gradient corresponding to x2
 #species with similar responses to x2 appear close together
+
+
+## Generate mixed-response community data ##
+
+#set seed for this simulation
+set.seed(2)
+
+#true fixed-effect parameters
+alpha = c(0,0,0,0)                    #true intercept for each species
+beta1 = c(1,1,-1,-1)                  #true effect of x1 on each species
+beta2 = c(1,-1,1,-1)                  #true effect of x2 on each species
+sigma = c(1,NA,NA,1)                  #residual variation for species with Gaussian noise
+
+#empty matrices for linear predictors and observed responses
+L = matrix(NA, nrow = n, ncol = 4)    #linear predictor for each species
+Y = matrix(NA, nrow = n, ncol = 4)    #observed response matrix (sites x species)
+
+#simulate linear predictor for each species
+for (j in 1:4){
+  L[,j] = alpha[j] + beta1[j]*x1 + beta2[j]*x2
+}
+
+#species 1: continuous response, normal model
+Y[,1] = L[,1] + rnorm(n, sd = sigma[1])
+
+#species 2: presence-absence response, probit model
+Y[,2] = 1*((L[,2] + rnorm(n, sd = 1)) > 0)
+
+#species 3: count response, Poisson model
+Y[,3] = rpois(n, lambda = exp(L[,3]))
+
+#species 4: overdispersed count response, lognormal Poisson model
+Y[,4] = rpois(n, lambda = exp(L[,4] + rnorm(n, sd = sigma[4])))
+
+#inspect first 10 sampling units
+Y[1:10,]
+
+
+## Construct mixed-distribution HMSC model ##
+
+#fit HMSC model with one distribution per species
+m = Hmsc(Y = Y,
+         XData = XData,
+         XFormula = ~x1+x2,
+         distr = c("normal","probit","poisson","lognormal poisson"))
+
+#species 1 = normal
+#species 2 = probit
+#species 3 = Poisson
+#species 4 = lognormal Poisson
+
+
+## Fit mixed-distribution HMSC model ##
+
+m = sampleMcmc(m, thin = thin,
+               samples = samples,
+               transient = transient,
+               nChains = nChains,
+               nParallel = nChains,
+               verbose = verbose)
+
+
+## Check MCMC convergence diagnostics ##
+
+#convert fitted model output into coda format
+mpost = convertToCodaObject(m)
+
+#effective sample size for beta parameters
+effectiveSize(mpost$Beta)
+
+#Gelman-Rubin diagnostic for beta parameters
+gelman.diag(mpost$Beta, multivariate = FALSE)$psrf
+
+
+
+## Evaluate explanatory power of mixed-distribution model ##
+
+#posterior predicted values for each species
+#expected = FALSE is needed for Poisson-type fit measures
+preds = computePredictedValues(m, expected = FALSE)
+
+#evaluate model fit for mixed response types
+evaluateModelFit(hM = m, predY = preds)
+
+#different metrics are returned for different response distributions
+#normal species use R2 and RMSE
+#probit species use AUC and TjurR2
+#Poisson and lognormal Poisson species use SR2 and count-specific metrics
+#NA values indicate that a metric is not defined for that response type
+
+
+## Extract posterior estimates of regression coefficients (Beta) ##
+
+#retrieve posterior summaries of Beta parameters
+postBeta = getPostEstimate(m, parName = "Beta")
+
+#plot support for each coefficient
+plotBeta(m,
+         post = postBeta,
+         param = "Support",
+         supportLevel = 0.95)
+
+#all species share the same linear predictor scale
+#so Beta parameters can be compared across response distributions
+
+
