@@ -95,6 +95,24 @@ dim(Y)
 colSums(Y > 0)
 
 
+#remove problematic taxa suggested during exploratory discussion
+#
+#LizUnIdent:
+#unresolved taxonomic identity
+#
+#Tesgra:
+#turtle species with potentially very different ecology
+#
+#for now, we create an alternative community matrix
+#without modifying the original Y object
+Y_m3 <- Y[, !colnames(Y) %in% c('LizUnIdent',
+                                'Tesgra')]
+
+#check remaining species
+colnames(Y_m3)
+
+#check dimensions
+dim(Y_m3)
 
 ###############################
 ### Plot species prevalence ###
@@ -948,6 +966,40 @@ m2
 
 
 #############################
+### Clean latent model    ###
+#############################
+
+
+
+#create alternative latent-variable model
+#
+#this model excludes:
+#
+#LizUnIdent
+#Tesgra
+#
+#the goal is to inspect whether:
+#
+#residual associations
+#environmental responses
+#latent structure
+#and convergence behaviour
+#
+#change after removing these taxa
+
+m3 <- Hmsc(Y = Y_m3,
+           XData = XScaled,
+           XFormula = XFormula,
+           distr = 'poisson',
+           studyDesign = studyDesign,
+           ranLevels = list(sample = rL.site))
+
+#inspect model object
+m3
+
+
+
+#############################
 ### Fix spatial matching  ###
 #############################
 
@@ -1107,7 +1159,7 @@ par(mfrow = c(1, 1))
 
 
 ############################
-### Save fitted models   ###
+###  Save fitted models  ###
 ############################
 
 
@@ -1127,6 +1179,11 @@ saveRDS(m1, 'm1_environment_only.rds')
 #saving it allows us to inspect diagnostics, coefficients, and associations later
 #without repeating the expensive sampling step
 saveRDS(m2, 'm2_spatial_latent.rds')
+
+#save the clean latent-variable model
+#
+#this model excludes LizUnIdent and Tesgra
+saveRDS(m3, 'm3_clean_spatial_latent.rds')
 
 
 
@@ -1223,6 +1280,7 @@ saveRDS(m2, 'm2_spatial_latent.rds')
 #without recreating the coda objects every time
 saveRDS(mpost, 'mpost_m1_environment_only.rds')
 saveRDS(mpost2, 'mpost_m2_spatial_latent.rds')
+saveRDS(mpost3, 'mpost_m3_clean_spatial_latent.rds')
 
 
 
@@ -1239,6 +1297,7 @@ colnames(as.matrix(mpost$Beta[[1]]))
 
 colnames(as.matrix(mpost2$Beta[[1]]))
 
+colnames(as.matrix(mpost3$Beta[[1]]))
 
 
 ############################
@@ -1258,10 +1317,15 @@ postBeta_m1 <- getPostEstimate(m1, parName = 'Beta')
 #adding latent spatial structure
 postBeta_m2 <- getPostEstimate(m2, parName = 'Beta')
 
+#extract posterior beta estimates for m3
+#
+#this allows comparison after removing problematic taxa
+postBeta_m3 <- getPostEstimate(m3, parName = 'Beta')
+
 #save beta estimates
 saveRDS(postBeta_m1, 'postBeta_m1_environment_only.rds')
 saveRDS(postBeta_m2, 'postBeta_m2_spatial_latent.rds')
-
+saveRDS(postBeta_m3, 'postBeta_m3_clean_spatial_latent.rds')
 
 
 ################################
@@ -1567,6 +1631,61 @@ mtext('Residual association',
 
 #reset layout
 layout(1)
+
+
+
+#############################
+### Fit clean latent model ###
+#############################
+
+
+
+#fit the clean latent-variable model
+#
+#m3 uses the same structure as m2
+#but excludes:
+#
+#LizUnIdent
+#Tesgra
+#
+#we keep the same MCMC settings as m2
+#so the models remain comparable
+
+m3 <- sampleMcmc(m3,
+                 samples = 1000,
+                 thin = 10,
+                 transient = 1000,
+                 nChains = 4,
+                 verbose = 1000)
+
+#convert posterior samples to coda objects
+mpost3 <- convertToCodaObject(m3)
+
+#check effective sample size for beta parameters
+effectiveSize(mpost3$Beta)
+
+#check Gelman diagnostics for beta parameters
+gelman.diag(mpost3$Beta, multivariate = FALSE)
+
+
+
+#########################
+### Visualise ESS m3  ###
+#########################
+
+
+
+#extract effective sample sizes for beta parameters from m3
+ess_beta_m3 <- effectiveSize(mpost3$Beta)
+
+#visualise ESS distribution for m3
+par(mar = c(5, 5, 2, 1))
+
+hist(ess_beta_m3,
+     breaks = 20,
+     main = 'Effective sample size of beta parameters: m3',
+     xlab = 'ESS')
+
 
 
 
