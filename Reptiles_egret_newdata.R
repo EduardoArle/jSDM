@@ -11,12 +11,12 @@ library(Hmsc)
 
 #list WDs
 wd_data <- '/Users/carloseduardoaribeiro/Documents/Post-doc_2/Data'
-wd_models <- '/Users/carloseduardoaribeiro/Documents/Post-doc_2/Egret_reptile_models'
-wd_plots <- '/Users/carloseduardoaribeiro/Documents/Post-doc_2/Egret_reptile_models/Plots'
+wd_models <- '/Users/carloseduardoaribeiro/Documents/Post-doc_2/Egret_reptile_models_newEgret'
+wd_plots <- '/Users/carloseduardoaribeiro/Documents/Post-doc_2/Egret_reptile_models_newEgret/Plots'
 
 #load main reptile table
 setwd(wd_data)
-reptiles <- read.csv('NorthernIsraelReptiles.csv')
+reptiles <- read.csv('Phd_survey_samples_2024_withEgrets.csv')
 
 #check table dimensions
 dim(reptiles)
@@ -47,7 +47,7 @@ data.frame(column_number = 1:ncol(reptiles), column_name = names(reptiles))
 
 
 #create species matrix
-Y <- reptiles[, 24:47]
+Y <- reptiles[, 15:38]
 
 #check dimensions
 dim(Y)
@@ -126,7 +126,7 @@ dim(Y_m3)
 env_vars <- c('T_min',
               'Precipitation',
               'Elev_MEAN',
-              'EgrtPredPress',
+              'BubibisSmpl',
               'Barrenness',
               'Ndvi_MEAN',
               'DISTURB')
@@ -205,7 +205,7 @@ species_cor <- cor(Y,
 species_cor_plot <- species_cor
 
 species_cor_plot[upper.tri(species_cor_plot,
-                           diag = TRUE)] <- NA
+                           diag = FALSE)] <- NA
 
 #define colour scale
 species_cor_zlim <- max(abs(species_cor_plot),
@@ -260,7 +260,7 @@ abline(h = 10,
 XData <- reptiles[, c('T_min',
                       'Precipitation',
                       'Elev_MEAN',
-                      'EgrtPredPress',
+                      'BubibisSmpl',
                       'Barrenness',
                       'Ndvi_MEAN',
                       'DISTURB')]
@@ -278,7 +278,7 @@ XData <- reptiles[, c('T_min',
 #
 #EgrtPredPress:
 #our biologically most interesting variable
-#represents estimated cattle egret predation pressure
+#represents estimated cattle egret abundance/activity
 #
 #Barrenness:
 #describes habitat openness and exposed substrate
@@ -314,7 +314,7 @@ summary(XData)
 
 
 ############################
-### Standardise XData     ###
+### Standardise XData    ###
 ############################
 
 
@@ -427,6 +427,50 @@ nrow(XScaled)
 
 
 
+#############################
+### Fix spatial matching  ###
+#############################
+
+
+
+#check whether sample identifiers are unique
+length(unique(reptiles$Sample))
+nrow(reptiles)
+
+#recreate study design
+#
+#each row is one sampling site
+studyDesign <- data.frame(sample = as.factor(reptiles$Sample))
+
+#create coordinate matrix again
+coords <- as.matrix(reptiles[, c('Lon_sample', 'Lat_sample')])
+
+#give coordinates row names that match the sample names
+#
+#this is essential because HMSC needs to know which coordinates belong
+#to which sampling unit
+rownames(coords) <- levels(studyDesign$sample)
+
+#check matching
+head(rownames(coords))
+head(levels(studyDesign$sample))
+
+#create spatial random level again
+rL.site <- HmscRandomLevel(sData = coords)
+
+#rebuild latent-variable model
+m2 <- Hmsc(Y = Y,
+           XData = XScaled,
+           XFormula = XFormula,
+           distr = 'poisson',
+           studyDesign = studyDesign,
+           ranLevels = list(sample = rL.site))
+
+#inspect model
+m2
+
+
+
 ############################
 ### First HMSC model     ###
 ############################
@@ -456,7 +500,7 @@ Y <- as.matrix(Y)
 #minimum temperature
 #precipitation
 #elevation
-#egret predation pressure
+#egret field counts
 #barrenness
 #NDVI
 #disturbance
@@ -466,7 +510,7 @@ Y <- as.matrix(Y)
 XFormula <- ~ T_min +
   Precipitation +
   Elev_MEAN +
-  EgrtPredPress +
+  BubibisSmpl +
   Barrenness +
   Ndvi_MEAN +
   DISTURB
@@ -478,7 +522,7 @@ XFormula <- ~ T_min +
 #conceptually, this model asks:
 #
 #"how does each reptile species respond to the measured environmental
-#predictors, including egret predation pressure?"
+#predictors, including egret abundance/activity?"
 #
 #this is still a relatively simple model
 #that is good, because we want to understand the baseline first
@@ -493,9 +537,9 @@ m1
 
 
 
-############################
+#############################
 ### Fit first HMSC model  ###
-############################
+#############################
 
 
 
@@ -616,6 +660,24 @@ m1 <- sampleMcmc(m1,
                  nChains = 4,
                  verbose = 1000)
 
+#setwd
+setwd(wd_models)
+
+#save the environment-only model
+#
+#this avoids having to rerun the MCMC every time we reopen R
+#this is especially important because HMSC models can take a long time to fit
+saveRDS(m1, 'm1_environment_only.rds')
+
+#extract posterior beta estimates for m1
+#
+#beta coefficients describe species responses to environmental predictors
+postBeta_m1 <- getPostEstimate(m1, parName = 'Beta')
+
+#save beta estimates
+setwd(wd_models)
+saveRDS(postBeta_m1, 'postBeta_m1_environment_only.rds')
+
 #samples = 1000
 #saves 1000 posterior samples per chain
 #
@@ -631,7 +693,20 @@ m1 <- sampleMcmc(m1,
 #verbose = 1000
 #print progress less frequently
 
+setwd(wd_models)
 mpost <- convertToCodaObject(m1)
+
+#save posterior objects used for diagnostics
+#
+#these are useful because they allow us to inspect convergence again
+#without recreating the coda objects every time
+saveRDS(mpost, 'mpost_m1_environment_only.rds')
+
+
+#inspect available beta parameter names
+#
+#this helps us choose parameters for visualising chain behaviour
+colnames(as.matrix(mpost$Beta[[1]]))
 
 effectiveSize(mpost$Beta)
 
@@ -684,6 +759,8 @@ dim(postBeta$mean)
 
 #inspect posterior mean coefficients
 postBeta$mean
+
+
 
 
 #important conceptual point:
@@ -759,7 +836,7 @@ pred_names <- c('Intercept',
                 'T_min',
                 'Precipitation',
                 'Elev_MEAN',
-                'EgrtPredPress',
+                'BubibisSmpl',
                 'Barrenness',
                 'Ndvi_MEAN',
                 'DISTURB')
@@ -797,7 +874,7 @@ layout(matrix(c(1, 2), nrow = 1),
        widths = c(5, 1))
 
 #main heatmap
-par(mar = c(10, 10, 3, 1))
+par(mar = c(5, 2, 3, 4))
 
 image(t(postBeta$mean),
       axes = FALSE,
@@ -820,7 +897,7 @@ axis(2,
      cex.axis = 0.8)
 
 #colour legend
-par(mar = c(10, 2, 3, 4))
+par(mar = c(5, 2, 3, 4))
 
 legend_vals <- seq(-zlim, zlim, length.out = 100)
 
@@ -872,51 +949,54 @@ mtext('Posterior mean beta',
 #EgrtPredPress
 #
 #because it allows us to inspect whether reptile species differ
-#in their apparent responses to cattle egret predation pressure
+#in their apparent responses to cattle egret abundance/activity
 
 
 
 ##############################
-### Egret predation effect ###
+### Egret abundance effect ###
 ##############################
 
 
-#extract posterior mean responses to egret predation pressure
+#extract posterior mean responses to egret abundance
 #
-#row 5 corresponds to EgrtPredPress because:
+#row 5 corresponds to BubibisSmpl because:
 #
 #1 = intercept
 #2 = T_min
 #3 = Precipitation
 #4 = Elev_MEAN
-#5 = EgrtPredPress
+#5 = BubibisSmpl
 #
 #positive beta:
-#species tends to occur more where egret predation pressure is higher
+#species tends to be more abundant at sites
+#with higher observed egret counts
 #
 #negative beta:
-#species tends to occur less where egret predation pressure is higher
+#species tends to be less abundant at sites
+#with higher observed egret counts
 
 egret_beta <- postBeta$mean[5, ]
 
 #inspect values
 egret_beta
 
-#plot species responses to egret predation pressure
+#plot species responses to egret abundance
+par(mfrow = c(1, 1))
 par(mar = c(8, 5, 2, 1))
 
 barplot(egret_beta,
         las = 2,
         ylab = 'Posterior mean beta',
-        main = 'Species responses to egret predation pressure')
+        main = 'Species responses to egret abundance')
 
 #abline at zero
 #
 #species above zero:
-#positive association with egret predation pressure
+#positive association with observed egret abundance
 #
 #species below zero:
-#negative association with egret predation pressure
+#negative association with observed egret abundance
 abline(h = 0)
 
 
@@ -924,7 +1004,7 @@ abline(h = 0)
 #
 #these are CONDITIONAL environmental responses
 #
-#the model is estimating species responses to egret predation pressure
+#the model is estimating species responses to observed egret abundance
 #while simultaneously accounting for the other predictors in the model
 #
 #therefore, this is not simply a raw correlation
@@ -936,9 +1016,9 @@ abline(h = 0)
 #the pattern could also emerge because:
 #
 #egrets prefer certain habitats
-#egret pressure correlates with disturbance
-#egret pressure correlates with vegetation openness
-#some reptile species avoid habitats frequented by egrets
+#egret abundance correlates with disturbance
+#egret abundance correlates with vegetation openness
+#some reptile species avoid habitats frequently used by egrets
 #
 #therefore:
 #
@@ -1033,7 +1113,7 @@ m2 <- Hmsc(Y = Y,
 #
 #temperature
 #precipitation
-#egret predation pressure
+#egret abundance/activity
 #disturbance
 #
 #however, the model can now ALSO estimate additional latent structure
@@ -1073,82 +1153,6 @@ m2
 
 
 #############################
-### Clean latent model    ###
-#############################
-
-
-
-#create alternative latent-variable model
-#
-#this model excludes:
-#
-#LizUnIdent
-#Tesgra
-#
-#the goal is to inspect whether:
-#
-#residual associations
-#environmental responses
-#latent structure
-#and convergence behaviour
-#
-#change after removing these taxa
-
-m3 <- Hmsc(Y = Y_m3,
-           XData = XScaled,
-           XFormula = XFormula,
-           distr = 'poisson',
-           studyDesign = studyDesign,
-           ranLevels = list(sample = rL.site))
-
-#inspect model object
-m3
-
-
-
-#############################
-### Fix spatial matching  ###
-#############################
-
-#check whether sample identifiers are unique
-length(unique(reptiles$Sample))
-nrow(reptiles)
-
-#recreate study design
-#
-#each row is one sampling site
-studyDesign <- data.frame(sample = as.factor(reptiles$Sample))
-
-#create coordinate matrix again
-coords <- as.matrix(reptiles[, c('Lon_sample', 'Lat_sample')])
-
-#give coordinates row names that match the sample names
-#
-#this is essential because HMSC needs to know which coordinates belong
-#to which sampling unit
-rownames(coords) <- levels(studyDesign$sample)
-
-#check matching
-head(rownames(coords))
-head(levels(studyDesign$sample))
-
-#create spatial random level again
-rL.site <- HmscRandomLevel(sData = coords)
-
-#rebuild latent-variable model
-m2 <- Hmsc(Y = Y,
-           XData = XScaled,
-           XFormula = XFormula,
-           distr = 'poisson',
-           studyDesign = studyDesign,
-           ranLevels = list(sample = rL.site))
-
-#inspect model
-m2
-
-
-
-#############################
 ### Fit latent model      ###
 #############################
 
@@ -1167,10 +1171,44 @@ m2 <- sampleMcmc(m2,
                  nChains = 4,
                  verbose = 1000)
 
+#setwd
+setwd(wd_models)
+
+#save the latent-variable model
+#
+#this model is slower because it includes spatial latent structure
+#saving it allows us to inspect diagnostics, coefficients, and associations later
+#without repeating the expensive sampling step
+saveRDS(m2, 'm2_spatial_latent.rds')
+
+#extract posterior beta estimates for m2
+#
+#this allows us to compare environmental responses before and after
+#adding latent spatial structure
+postBeta_m2 <- getPostEstimate(m2, parName = 'Beta')
+
+#save beta estimates
+setwd(wd_models)
+saveRDS(postBeta_m2, 'postBeta_m2_spatial_latent.rds')
+
 #convert posterior samples to coda objects
 #
 #this lets us inspect MCMC diagnostics
 mpost2 <- convertToCodaObject(m2)
+
+#save posterior objects used for diagnostics
+#
+#these are useful because they allow us to inspect convergence again
+#without recreating the coda objects every time
+
+setwd(wd_models)
+saveRDS(mpost2, 'mpost_m2_spatial_latent.rds')
+
+#inspect available beta parameter names
+#
+#this helps us choose parameters for visualising chain behaviour
+colnames(as.matrix(mpost2$Beta[[1]]))
+
 
 #check effective sample size for beta parameters
 #
@@ -1216,91 +1254,6 @@ hist(ess_beta_m2,
      breaks = 20,
      main = 'Effective sample size of beta parameters: m2',
      xlab = 'ESS')
-
-
-
-###############################
-### Visualise trace plots   ###
-###############################
-
-
-
-#select parameter to inspect
-trace_param <- 'B[EgrtPredPress (C5), Eumsch (S4)]'
-
-#extract chains from m1
-trace_m1 <- as.matrix(mpost$Beta)[, trace_param]
-
-#extract chains from m2
-trace_m2 <- as.matrix(mpost2$Beta)[, trace_param]
-
-#extract chains from m3
-trace_m3 <- as.matrix(mpost3$Beta)[, trace_param]
-
-
-
-#############################
-### Visualise in R window ###
-#############################
-
-
-
-#plot trace behaviour for m1 and m2
-par(mfrow = c(3, 1),
-    mar = c(4, 5, 2, 1))
-
-#trace plot m1
-plot(trace_m1,
-     type = 'l',
-     xlab = 'MCMC iteration',
-     ylab = 'Posterior beta',
-     main = 'm1')
-
-#trace plot m2
-plot(trace_m2,
-     type = 'l',
-     xlab = 'MCMC iteration',
-     ylab = 'Posterior beta',
-     main = 'm2')
-
-#trace plot m3
-plot(trace_m3,
-     type = 'l',
-     xlab = 'MCMC iteration',
-     ylab = 'Posterior beta',
-     main = 'm3')
-
-#reset layout
-par(mfrow = c(1, 1))
-
-
-
-############################
-###  Save fitted models  ###
-############################
-
-
-
-#setwd
-setwd(wd_models)
-
-#save the environment-only model
-#
-#this avoids having to rerun the MCMC every time we reopen R
-#this is especially important because HMSC models can take a long time to fit
-saveRDS(m1, 'm1_environment_only.rds')
-
-#save the latent-variable model
-#
-#this model is slower because it includes spatial latent structure
-#saving it allows us to inspect diagnostics, coefficients, and associations later
-#without repeating the expensive sampling step
-saveRDS(m2, 'm2_spatial_latent.rds')
-
-#save the clean latent-variable model
-#
-#this model excludes LizUnIdent and Tesgra
-saveRDS(m3, 'm3_clean_spatial_latent.rds')
 
 
 
@@ -1383,66 +1336,6 @@ saveRDS(m3, 'm3_clean_spatial_latent.rds')
 #model comparison
 #posterior uncertainty around coefficients and associations
 
-
-
-#########################
-### Save diagnostics  ###
-#########################
-
-
-
-#save posterior objects used for diagnostics
-#
-#these are useful because they allow us to inspect convergence again
-#without recreating the coda objects every time
-saveRDS(mpost, 'mpost_m1_environment_only.rds')
-saveRDS(mpost2, 'mpost_m2_spatial_latent.rds')
-saveRDS(mpost3, 'mpost_m3_clean_spatial_latent.rds')
-
-
-
-############################
-### Extract trace chains ###
-############################
-
-
-
-#inspect available beta parameter names
-#
-#this helps us choose parameters for visualising chain behaviour
-colnames(as.matrix(mpost$Beta[[1]]))
-
-colnames(as.matrix(mpost2$Beta[[1]]))
-
-colnames(as.matrix(mpost3$Beta[[1]]))
-
-
-############################
-### Save beta estimates  ###
-############################
-
-
-
-#extract posterior beta estimates for m1
-#
-#beta coefficients describe species responses to environmental predictors
-postBeta_m1 <- getPostEstimate(m1, parName = 'Beta')
-
-#extract posterior beta estimates for m2
-#
-#this allows us to compare environmental responses before and after
-#adding latent spatial structure
-postBeta_m2 <- getPostEstimate(m2, parName = 'Beta')
-
-#extract posterior beta estimates for m3
-#
-#this allows comparison after removing problematic taxa
-postBeta_m3 <- getPostEstimate(m3, parName = 'Beta')
-
-#save beta estimates
-saveRDS(postBeta_m1, 'postBeta_m1_environment_only.rds')
-saveRDS(postBeta_m2, 'postBeta_m2_spatial_latent.rds')
-saveRDS(postBeta_m3, 'postBeta_m3_clean_spatial_latent.rds')
 
 
 ################################
@@ -1544,16 +1437,16 @@ mtext('Posterior mean beta',
 
 
 
-#extract posterior mean responses to egret predation pressure
+#extract posterior mean responses to egret abundance/activity
 #from the latent-variable model (m2)
 #
 #this allows direct comparison with m1
 #
 #positive beta:
-#species tends to occur more where egret predation pressure is higher
+#species tends to occur more where egret abundance/activity is higher
 #
 #negative beta:
-#species tends to occur less where egret predation pressure is higher
+#species tends to occur less where egret abundance/activity is higher
 #
 #importantly:
 #
@@ -1568,7 +1461,7 @@ egret_beta_m2 <- postBeta_m2$mean[5, ]
 #inspect values
 egret_beta_m2
 
-#plot species responses to egret predation pressure
+#plot species responses to egret abundance/activity
 par(mar = c(8, 5, 2, 1))
 
 barplot(egret_beta_m2,
@@ -1689,7 +1582,7 @@ round(Omega_support[1:5, 1:5], 2)
 #lower-triangle associations visible
 Omega_plot <- Omega_mean
 
-Omega_plot[upper.tri(Omega_plot, diag = TRUE)] <- NA
+Omega_plot[upper.tri(Omega_plot, diag = FALSE)] <- NA
 
 #define colour scale
 omega_zlim <- max(abs(Omega_plot), na.rm = TRUE)
@@ -1703,7 +1596,7 @@ layout(matrix(c(1, 2), nrow = 1),
 #main Omega heatmap
 par(mar = c(8, 8, 3, 1))
 
-image(t(Omega_plot),
+image(t(Omega_plot[nrow(Omega_plot):1, ]),
       axes = FALSE,
       col = omega_cols,
       zlim = c(-omega_zlim, omega_zlim),
@@ -1752,6 +1645,40 @@ layout(1)
 
 
 #############################
+### Clean latent model    ###
+#############################
+
+
+
+#create alternative latent-variable model
+#
+#this model excludes:
+#
+#LizUnIdent
+#Tesgra
+#
+#the goal is to inspect whether:
+#
+#residual associations
+#environmental responses
+#latent structure
+#and convergence behaviour
+#
+#change after removing these taxa
+
+m3 <- Hmsc(Y = Y_m3,
+           XData = XScaled,
+           XFormula = XFormula,
+           distr = 'poisson',
+           studyDesign = studyDesign,
+           ranLevels = list(sample = rL.site))
+
+#inspect model object
+m3
+
+
+
+#############################
 ### Fit clean latent model ###
 #############################
 
@@ -1775,8 +1702,37 @@ m3 <- sampleMcmc(m3,
                  nChains = 4,
                  verbose = 1000)
 
+
+#setwd
+setwd(wd_models)
+
+
+#save the clean latent-variable model
+#
+#this model excludes LizUnIdent and Tesgra
+saveRDS(m3, 'm3_clean_spatial_latent.rds')
+
+
+#extract posterior beta estimates for m3
+#
+#this allows comparison after removing problematic taxa
+postBeta_m3 <- getPostEstimate(m3, parName = 'Beta')
+
+#save beta estimates
+setwd(wd_models)
+saveRDS(postBeta_m3, 'postBeta_m3_clean_spatial_latent.rds')
+
+
 #convert posterior samples to coda objects
 mpost3 <- convertToCodaObject(m3)
+
+#save posterior objects used for diagnostics
+#
+#these are useful because they allow us to inspect convergence again
+#without recreating the coda objects every time
+
+setwd(wd_models)
+saveRDS(mpost3, 'mpost_m3_clean_spatial_latent.rds')
 
 #check effective sample size for beta parameters
 effectiveSize(mpost3$Beta)
@@ -1803,6 +1759,74 @@ hist(ess_beta_m3,
      main = 'Effective sample size of beta parameters: m3',
      xlab = 'ESS')
 
+
+
+##############################
+### Fit longer clean model ###
+##############################
+
+
+
+#fit longer version of m3
+#
+#m3_long uses the same structure as m3
+#but longer chains, stronger thinning, and longer burn-in
+#
+#goal:
+#test whether remaining convergence issues improve with longer sampling
+
+m3_long <- sampleMcmc(m3,
+                      samples = 3000,
+                      thin = 20,
+                      transient = 3000,
+                      nChains = 4,
+                      verbose = 1000)
+
+#setwd
+setwd(wd_models)
+
+#save longer clean latent-variable model
+saveRDS(m3_long, 'm3_long_clean_spatial_latent.rds')
+
+#convert posterior samples to coda objects
+mpost3_long <- convertToCodaObject(m3_long)
+
+#save posterior diagnostic object
+saveRDS(mpost3_long, 'mpost_m3_long_clean_spatial_latent.rds')
+
+#extract effective sample sizes for beta parameters
+ess_beta_m3_long <- effectiveSize(mpost3_long$Beta)
+
+#check Gelman diagnostics for beta parameters
+gelman.diag(mpost3_long$Beta, multivariate = FALSE)
+
+#plot comparison fig
+
+#shared x-axis range
+ess_xlim_long <- c(0, 1500)
+
+#plot ESS comparison
+par(mfrow = c(1, 2),
+    mar = c(5, 5, 3, 1))
+
+#ESS histogram m3
+hist(ess_beta_m3,
+     breaks = seq(0, 1500, by = 50),
+     xlim = ess_xlim_long,
+     main = 'm3',
+     xlab = 'ESS',
+     ylab = 'Frequency')
+
+#ESS histogram m3_long
+hist(ess_beta_m3_long,
+     breaks = seq(0, 1500, by = 50),
+     xlim = ess_xlim_long,
+     main = 'm3_long',
+     xlab = 'ESS',
+     ylab = 'Frequency')
+
+#reset plotting layout
+par(mfrow = c(1, 1))
 
 
 ################################
@@ -1850,7 +1874,7 @@ round(Omega_support_m3[1:5, 1:5], 2)
 Omega_plot_m3 <- Omega_mean_m3
 
 Omega_plot_m3[upper.tri(Omega_plot_m3,
-                        diag = TRUE)] <- NA
+                        diag = FALSE)] <- NA
 
 #define colour scale
 omega_zlim_m3 <- max(abs(Omega_plot_m3),
@@ -1859,6 +1883,50 @@ omega_zlim_m3 <- max(abs(Omega_plot_m3),
 omega_legend_vals_m3 <- seq(-omega_zlim_m3,
                             omega_zlim_m3,
                             length.out = 100)
+
+
+
+#######################################
+### Residual associations m3_long   ###
+#######################################
+
+
+
+#compute residual species associations from m3_long
+#
+#this tests whether residual covariance structure
+#is stable after longer posterior sampling
+Omega_m3_long <- computeAssociations(m3_long)
+
+#extract posterior mean residual association matrix
+Omega_mean_m3_long <- Omega_m3_long[[1]]$mean
+
+#extract posterior support for association signs
+Omega_support_m3_long <- Omega_m3_long[[1]]$support
+
+
+
+##################################
+### Prepare Omega plot m3_long ###
+##################################
+
+
+
+#prepare Omega matrix for visualisation
+#
+#remove diagonal and upper triangle
+Omega_plot_m3_long <- Omega_mean_m3_long
+
+Omega_plot_m3_long[upper.tri(Omega_plot_m3_long,
+                             diag = FALSE)] <- NA
+
+#define colour scale
+omega_zlim_m3_long <- max(abs(Omega_plot_m3_long),
+                          na.rm = TRUE)
+
+omega_legend_vals_m3_long <- seq(-omega_zlim_m3_long,
+                                 omega_zlim_m3_long,
+                                 length.out = 100)
 
 
 
@@ -1918,7 +1986,7 @@ pred_names <- c('Intercept',
                 'T_min',
                 'Precipitation',
                 'Elev_MEAN',
-                'EgrtPredPress',
+                'BubibisSmpl',
                 'Barrenness',
                 'Ndvi_MEAN',
                 'DISTURB')
@@ -1930,15 +1998,51 @@ rownames(postBeta_m2$mean) <- pred_names
 #extract egret predation responses from both models
 egret_beta_summary <- data.frame(
   species = colnames(Y),
-  m1_environment_only = postBeta_m1$mean['EgrtPredPress', ],
-  m2_spatial_latent = postBeta_m2$mean['EgrtPredPress', ],
+  m1_environment_only = postBeta_m1$mean['BubibisSmpl', ],
+  m2_spatial_latent = postBeta_m2$mean['BubibisSmpl', ],
   difference_m2_minus_m1 =
-    postBeta_m2$mean['EgrtPredPress', ] -
-    postBeta_m1$mean['EgrtPredPress', ]
+    postBeta_m2$mean['BubibisSmpl', ] -
+    postBeta_m1$mean['BubibisSmpl', ]
 )
 
 #save egret response summary
 write.csv(egret_beta_summary, 'egret_beta_summary_m1_vs_m2.csv', row.names = FALSE)
+
+
+
+##################################
+### Add values to heatmaps     ###
+##################################
+
+
+
+add_matrix_values <- function(mat,
+                              digits = 2,
+                              cex = 0.45,
+                              threshold = 0.45){
+  
+  x_at <- seq(0, 1, length.out = ncol(mat))
+  y_at <- seq(0, 1, length.out = nrow(mat))
+  
+  for(i in seq_len(nrow(mat))){
+    
+    for(j in seq_len(ncol(mat))){
+      
+      if(is.finite(mat[i, j])){
+        
+        text_col <- ifelse(abs(mat[i, j]) >= threshold,
+                           'white',
+                           'black')
+        
+        text(x = x_at[j],
+             y = y_at[nrow(mat) - i + 1],
+             labels = round(mat[i, j], digits),
+             cex = cex,
+             col = text_col)
+      }
+    }
+  }
+}
 
 
 
@@ -1987,12 +2091,17 @@ layout(matrix(c(1, 2), nrow = 1),
 #main correlation heatmap
 par(mar = c(8, 8, 3, 1))
 
-image(t(species_cor_plot),
+image(t(species_cor_plot[nrow(species_cor_plot):1, ]),
       axes = FALSE,
       col = species_cor_cols,
       zlim = c(-species_cor_zlim,
                species_cor_zlim),
       main = 'Raw species co-occurrence structure')
+
+add_matrix_values(species_cor_plot,
+                  digits = 2,
+                  cex = 0.4,
+                  threshold = 0.4)
 
 axis(1,
      at = seq(0, 1,
@@ -2301,7 +2410,7 @@ layout(1)
 
 
 ############################################
-### Save EgrtPredPress plots for slides  ###
+### Save BubibisSmpl plots for slides  ###
 ############################################
 
 
@@ -2330,7 +2439,7 @@ barplot(egret_beta,
         las = 2,
         ylim = egret_ylim,
         ylab = 'Posterior mean beta',
-        main = 'Species responses to EgrtPredPress')
+        main = 'Species responses to BubibisSmpl')
 
 abline(h = 0)
 
@@ -2350,7 +2459,7 @@ barplot(egret_beta_m2,
         las = 2,
         ylim = egret_ylim,
         ylab = 'Posterior mean beta',
-        main = 'Species responses to EgrtPredPress')
+        main = 'Species responses to BubibisSmpl')
 
 abline(h = 0)
 
@@ -2378,7 +2487,7 @@ par(mar = c(8, 5, 3, 1))
 barplot(egret_delta,
         las = 2,
         ylab = 'Change in posterior mean beta',
-        main = 'Effect of latent structure on EgrtPredPress responses')
+        main = 'Effect of latent structure on BubibisSmpl responses')
 
 abline(h = 0,
        lty = 2)
@@ -2388,7 +2497,7 @@ dev.off()
 
 
 ############################################################
-### Save EgrtPredPress plots for m2 and m3 comparison    ###
+### Save BubibisSmpl plots for m2 and m3 comparison    ###
 ############################################################
 
 
@@ -2396,13 +2505,13 @@ dev.off()
 #species retained in m3
 species_m3 <- colnames(postBeta_m3$mean)
 
-#extract EgrtPredPress responses from m2,
+#extract BubibisSmpl responses from m2,
 #restricted to species retained in m3
-egret_beta_m2_restricted <- postBeta_m2$mean['EgrtPredPress',
+egret_beta_m2_restricted <- postBeta_m2$mean['BubibisSmpl',
                                              species_m3]
 
-#extract EgrtPredPress responses from m3
-egret_beta_m3 <- postBeta_m3$mean['EgrtPredPress', ]
+#extract BubibisSmpls responses from m3
+egret_beta_m3 <- postBeta_m3$mean['BubibisSmpl', ]
 
 #calculate effect of taxon removal
 egret_delta_m3_minus_m2 <- egret_beta_m3 - egret_beta_m2_restricted
@@ -2427,7 +2536,7 @@ barplot(egret_beta_m2_restricted,
         las = 2,
         ylim = egret_ylim_m2_m3,
         ylab = 'Posterior mean beta',
-        main = 'Species responses to EgrtPredPress')
+        main = 'Species responses to BubibisSmpl')
 
 abline(h = 0)
 
@@ -2435,7 +2544,7 @@ dev.off()
 
 
 
-#save EgrtPredPress m3 plot
+#save BubibisSmpl m3 plot
 png('egret_beta_species_responses_m3.png',
     width = 1800,
     height = 1200,
@@ -2447,7 +2556,7 @@ barplot(egret_beta_m3,
         las = 2,
         ylim = egret_ylim_m2_m3,
         ylab = 'Posterior mean beta',
-        main = 'Species responses to EgrtPredPress')
+        main = 'Species responses to BubibisSmpl')
 
 abline(h = 0)
 
@@ -2466,7 +2575,7 @@ par(mar = c(8, 5, 3, 1))
 barplot(egret_delta_m3_minus_m2,
         las = 2,
         ylab = 'Change in posterior mean beta',
-        main = 'Effect of taxon removal on EgrtPredPress responses')
+        main = 'Effect of taxon removal on BubibisSmpl responses')
 
 abline(h = 0,
        lty = 2)
@@ -2493,11 +2602,16 @@ layout(matrix(c(1, 2), nrow = 1),
 #main Omega heatmap
 par(mar = c(8, 8, 3, 1))
 
-image(t(Omega_plot),
+image(t(Omega_plot[nrow(Omega_plot):1, ]),
       axes = FALSE,
       col = omega_cols,
       zlim = c(-omega_zlim, omega_zlim),
       main = 'Residual species associations')
+
+add_matrix_values(Omega_plot,
+                  digits = 2,
+                  cex = 0.4,
+                  threshold = 0.5)
 
 axis(1,
      at = seq(0, 1, length.out = ncol(Omega_plot)),
@@ -2555,11 +2669,16 @@ layout(matrix(c(1, 2), nrow = 1),
 #main Omega heatmap
 par(mar = c(8, 8, 3, 1))
 
-image(t(Omega_plot_m3),
+image(t(Omega_plot_m3[nrow(Omega_plot_m3):1, ]),
       axes = FALSE,
       col = omega_cols,
       zlim = c(-omega_zlim_m3, omega_zlim_m3),
       main = 'Residual species associations')
+
+add_matrix_values(Omega_plot_m3,
+                  digits = 2,
+                  cex = 0.4,
+                  threshold = 0.5)
 
 axis(1,
      at = seq(0, 1, length.out = ncol(Omega_plot_m3)),
@@ -2579,6 +2698,74 @@ par(mar = c(6, 1, 2, 4))
 image(x = 1,
       y = omega_legend_vals_m3,
       z = matrix(omega_legend_vals_m3, nrow = 1),
+      col = omega_cols,
+      axes = FALSE,
+      xlab = '',
+      ylab = '')
+
+axis(4,
+     las = 2,
+     cex.axis = 0.8)
+
+mtext('Residual association',
+      side = 4,
+      line = 2.8,
+      cex = 0.9)
+
+dev.off()
+
+layout(1)
+
+
+
+###########################################
+### Save Omega m3_long plot for slides  ###
+###########################################
+
+
+
+#save residual association plot for m3_long
+png('omega_residual_species_associations_m3_long.png',
+    width = 2200,
+    height = 1400,
+    res = 200)
+
+layout(matrix(c(1, 2), nrow = 1),
+       widths = c(5, 1))
+
+#main Omega heatmap
+par(mar = c(8, 8, 3, 1))
+
+image(t(Omega_plot_m3_long[nrow(Omega_plot_m3_long):1, ]),
+      axes = FALSE,
+      col = omega_cols,
+      zlim = c(-omega_zlim_m3_long,
+               omega_zlim_m3_long),
+      main = 'Residual species associations')
+
+add_matrix_values(Omega_plot_m3_long,
+                  digits = 2,
+                  cex = 0.4,
+                  threshold = 0.5)
+
+axis(1,
+     at = seq(0, 1, length.out = ncol(Omega_plot_m3_long)),
+     labels = colnames(Omega_plot_m3_long),
+     las = 2,
+     cex.axis = 0.7)
+
+axis(2,
+     at = seq(0, 1, length.out = nrow(Omega_plot_m3_long)),
+     labels = rev(rownames(Omega_plot_m3_long)),
+     las = 2,
+     cex.axis = 0.7)
+
+#colour legend
+par(mar = c(6, 1, 2, 4))
+
+image(x = 1,
+      y = omega_legend_vals_m3_long,
+      z = matrix(omega_legend_vals_m3_long, nrow = 1),
       col = omega_cols,
       axes = FALSE,
       xlab = '',
@@ -2627,7 +2814,7 @@ Omega_diff_m3_minus_m2 <- Omega_mean_m3 - Omega_mean_m2_restricted
 Omega_diff_plot <- Omega_diff_m3_minus_m2
 
 Omega_diff_plot[upper.tri(Omega_diff_plot,
-                          diag = TRUE)] <- NA
+                          diag = FALSE)] <- NA
 
 #define colour scale for difference plot
 omega_diff_zlim <- max(abs(Omega_diff_plot),
@@ -2661,12 +2848,17 @@ layout(matrix(c(1, 2), nrow = 1),
 #main difference heatmap
 par(mar = c(8, 8, 3, 1))
 
-image(t(Omega_diff_plot),
+image(t(Omega_diff_plot[nrow(Omega_diff_plot):1, ]),
       axes = FALSE,
       col = omega_diff_cols,
       zlim = c(-omega_diff_zlim,
                omega_diff_zlim),
       main = 'Change in residual species associations')
+
+add_matrix_values(Omega_diff_plot,
+                  digits = 2,
+                  cex = 0.4,
+                  threshold = 0.3)
 
 axis(1,
      at = seq(0, 1,
@@ -2709,6 +2901,109 @@ layout(1)
 
 
 
+###########################################################
+### Difference in residual associations: m3_long vs m3 ###
+###########################################################
+
+
+
+#calculate change in residual associations after longer sampling
+#
+#positive values:
+#residual association is stronger in m3_long than in m3
+#
+#negative values:
+#residual association is weaker in m3_long than in m3
+Omega_diff_m3_long_minus_m3 <- Omega_mean_m3_long - Omega_mean_m3
+
+#prepare difference matrix for visualisation
+#
+#remove diagonal and upper triangle
+Omega_diff_plot_m3_long <- Omega_diff_m3_long_minus_m3
+
+Omega_diff_plot_m3_long[upper.tri(Omega_diff_plot_m3_long,
+                                  diag = FALSE)] <- NA
+
+#define colour scale for difference plot
+omega_diff_zlim_m3_long <- max(abs(Omega_diff_plot_m3_long),
+                               na.rm = TRUE)
+
+omega_diff_legend_vals_m3_long <- seq(-omega_diff_zlim_m3_long,
+                                      omega_diff_zlim_m3_long,
+                                      length.out = 100)
+
+
+########################################################
+### Save Omega difference plot for m3_long minus m3  ###
+########################################################
+
+
+ 
+#save difference in residual associations between m3_long and m3
+png('omega_difference_m3_long_minus_m3.png',
+    width = 2200,
+    height = 1400,
+    res = 200)
+
+layout(matrix(c(1, 2), nrow = 1),
+       widths = c(5, 1))
+
+#main difference heatmap
+par(mar = c(8, 8, 3, 1))
+
+image(t(Omega_diff_plot_m3_long[nrow(Omega_diff_plot_m3_long):1, ]),
+      axes = FALSE,
+      col = omega_diff_cols,
+      zlim = c(-omega_diff_zlim_m3_long,
+               omega_diff_zlim_m3_long),
+      main = 'Change in residual species associations')
+
+add_matrix_values(Omega_diff_plot_m3_long,
+                  digits = 2,
+                  cex = 0.4,
+                  threshold = 0.3)
+
+axis(1,
+     at = seq(0, 1,
+              length.out = ncol(Omega_diff_plot_m3_long)),
+     labels = colnames(Omega_diff_plot_m3_long),
+     las = 2,
+     cex.axis = 0.7)
+
+axis(2,
+     at = seq(0, 1,
+              length.out = nrow(Omega_diff_plot_m3_long)),
+     labels = rev(rownames(Omega_diff_plot_m3_long)),
+     las = 2,
+     cex.axis = 0.7)
+
+#colour legend
+par(mar = c(6, 1, 2, 4))
+
+image(x = 1,
+      y = omega_diff_legend_vals_m3_long,
+      z = matrix(omega_diff_legend_vals_m3_long,
+                 nrow = 1),
+      col = omega_diff_cols,
+      axes = FALSE,
+      xlab = '',
+      ylab = '')
+
+axis(4,
+     las = 2,
+     cex.axis = 0.8)
+
+mtext('Change in residual association',
+      side = 4,
+      line = 2.8,
+      cex = 0.9)
+
+dev.off()
+
+layout(1)
+
+
+
 ###################################
 ### Save ESS plots for slides   ###
 ###################################
@@ -2728,8 +3023,8 @@ par(mfrow = c(1, 2),
     oma = c(0, 0, 0, 0))
 
 hist(ess_beta_m1,
-     breaks = seq(0, 600, by = 25),
-     xlim = c(0, 600),
+     breaks = seq(0, 650, by = 25),
+     xlim = c(0, 650),
      ylim = c(0, 45),
      yaxs = 'i',
      main = 'm1',
@@ -2737,8 +3032,8 @@ hist(ess_beta_m1,
      ylab = 'Frequency')
 
 hist(ess_beta_m2,
-     breaks = seq(0, 600, by = 25),
-     xlim = c(0, 600),
+     breaks = seq(0, 650, by = 25),
+     xlim = c(0, 650),
      ylim = c(0, 45),
      yaxs = 'i',
      main = 'm2',
@@ -2795,10 +3090,92 @@ par(mfrow = c(1, 1))
 
 
 
+##########################################
+### Save ESS plot for m3 and m3_long   ###
+##########################################
+
+
+
+#save ESS comparison plot for m3 and m3_long
+setwd(wd_plots)
+
+png('ess_beta_m3_m3long_histograms.png',
+    width = 2200,
+    height = 1200,
+    res = 200)
+
+#shared x-axis range
+ess_xlim_long <- c(0, 1500)
+
+#shared histogram breaks
+ess_breaks_long <- seq(0, 1500, by = 50)
+
+#calculate shared y-axis limit
+hist_m3 <- hist(ess_beta_m3,
+                breaks = ess_breaks_long,
+                plot = FALSE)
+
+hist_m3_long <- hist(ess_beta_m3_long,
+                     breaks = ess_breaks_long,
+                     plot = FALSE)
+
+ess_ylim_long <- c(0,
+                   max(c(hist_m3$counts,
+                         hist_m3_long$counts)))
+
+par(mfrow = c(1, 2),
+    mar = c(5, 5, 3, 1),
+    oma = c(0, 0, 0, 0))
+
+hist(ess_beta_m3,
+     breaks = ess_breaks_long,
+     xlim = ess_xlim_long,
+     ylim = ess_ylim_long,
+     yaxs = 'i',
+     main = 'm3',
+     xlab = 'ESS',
+     ylab = 'Frequency')
+
+hist(ess_beta_m3_long,
+     breaks = ess_breaks_long,
+     xlim = ess_xlim_long,
+     ylim = ess_ylim_long,
+     yaxs = 'i',
+     main = 'm3_long',
+     xlab = 'ESS',
+     ylab = 'Frequency')
+
+dev.off()
+
+#reset plotting layout
+par(mfrow = c(1, 1))
+
+
+
 ###################################
 ### Save trace plots for slides ###
 ###################################
 
+
+
+#select parameter to inspect
+#
+#this is the BubibisSmpl response for Eumsch
+trace_param <- 'B[BubibisSmpl (C5), Eumsch (S4)]'
+
+#check that the parameter exists in all models
+trace_param %in% colnames(as.matrix(mpost$Beta[[1]]))
+trace_param %in% colnames(as.matrix(mpost2$Beta[[1]]))
+trace_param %in% colnames(as.matrix(mpost3$Beta[[1]]))
+
+#extract chains from m1
+trace_m1 <- as.matrix(mpost$Beta)[, trace_param]
+
+#extract chains from m2
+trace_m2 <- as.matrix(mpost2$Beta)[, trace_param]
+
+#extract chains from m3
+trace_m3 <- as.matrix(mpost3$Beta)[, trace_param]
 
 
 #shared y-axis limits for m1, m2 and m3
@@ -2850,6 +3227,199 @@ par(mfrow = c(1, 1))
 
 
 
+############################################
+### Save trace plots for m3 and m3_long  ###
+############################################
+
+
+
+#check that the parameter exists in m3_long
+trace_param %in% colnames(as.matrix(mpost3_long$Beta[[1]]))
+
+#extract chain from m3_long
+trace_m3_long <- as.matrix(mpost3_long$Beta)[, trace_param]
+
+#shared y-axis limits for m3 and m3_long
+trace_ylim_m3_long <- range(c(trace_m3,
+                              trace_m3_long))
+
+#shared x-axis limits
+trace_xlim_m3_long <- c(1,
+                        length(trace_m3_long))
+
+#save trace plot comparison for m3 and m3_long
+setwd(wd_plots)
+
+png('trace_beta_bubibis_eumsch_m3_m3long.png',
+    width = 2200,
+    height = 1200,
+    res = 200)
+
+par(mfrow = c(2, 1),
+    mar = c(3, 5, 2, 1))
+
+#trace plot m3
+plot(seq_along(trace_m3),
+     trace_m3,
+     type = 'l',
+     xlim = trace_xlim_m3_long,
+     ylim = trace_ylim_m3_long,
+     xlab = '',
+     ylab = 'Posterior beta',
+     main = 'm3',
+     xaxt = 'n')
+
+#trace plot m3_long
+plot(seq_along(trace_m3_long),
+     trace_m3_long,
+     type = 'l',
+     xlim = trace_xlim_m3_long,
+     ylim = trace_ylim_m3_long,
+     xlab = 'MCMC iteration',
+     ylab = 'Posterior beta',
+     main = 'm3_long')
+
+dev.off()
+
+#reset layout
+par(mfrow = c(1, 1))
+
+
+
+###############################################
+### Prepare Gelman diagnostics for plotting ###
+###############################################
+
+
+
+#calculate Gelman diagnostics for beta parameters
+gelman_m1 <- gelman.diag(mpost$Beta,
+                         multivariate = FALSE)
+
+gelman_m2 <- gelman.diag(mpost2$Beta,
+                         multivariate = FALSE)
+
+gelman_m3 <- gelman.diag(mpost3$Beta,
+                         multivariate = FALSE)
+
+gelman_m3_long <- gelman.diag(mpost3_long$Beta,
+                              multivariate = FALSE)
+
+#extract point estimates
+gelman_beta_m1 <- gelman_m1$psrf[, 'Point est.']
+gelman_beta_m2 <- gelman_m2$psrf[, 'Point est.']
+gelman_beta_m3 <- gelman_m3$psrf[, 'Point est.']
+gelman_beta_m3_long <- gelman_m3_long$psrf[, 'Point est.']
+
+
+
+###########################################
+### Save Gelman plots for slides        ###
+###########################################
+
+
+
+#shared x-axis limits
+gelman_xlim <- c(0.95, 5)
+
+#shared histogram breaks
+gelman_breaks <- seq(0.95, 5, by = 0.05)
+
+#shared y-axis limit
+gelman_hist_m1 <- hist(gelman_beta_m1,
+                       breaks = gelman_breaks,
+                       plot = FALSE)
+
+gelman_hist_m2 <- hist(gelman_beta_m2,
+                       breaks = gelman_breaks,
+                       plot = FALSE)
+
+gelman_hist_m3 <- hist(gelman_beta_m3,
+                       breaks = gelman_breaks,
+                       plot = FALSE)
+
+gelman_hist_m3_long <- hist(gelman_beta_m3_long,
+                            breaks = gelman_breaks,
+                            plot = FALSE)
+
+gelman_ylim <- c(0,
+                 max(c(gelman_hist_m1$counts,
+                       gelman_hist_m2$counts,
+                       gelman_hist_m3$counts,
+                       gelman_hist_m3_long$counts)))
+
+
+
+#save plot
+setwd(wd_plots)
+
+png('gelman_beta_all_models.png',
+    width = 2400,
+    height = 1800,
+    res = 200)
+
+par(mfrow = c(2, 2),
+    mar = c(5, 5, 3, 1))
+
+#m1
+hist(gelman_beta_m1,
+     breaks = gelman_breaks,
+     xlim = gelman_xlim,
+     ylim = gelman_ylim,
+     yaxs = 'i',
+     main = 'm1',
+     xlab = 'Gelman-Rubin PSRF',
+     ylab = 'Frequency')
+
+abline(v = 1.1,
+       lty = 2)
+
+#m2
+hist(gelman_beta_m2,
+     breaks = gelman_breaks,
+     xlim = gelman_xlim,
+     ylim = gelman_ylim,
+     yaxs = 'i',
+     main = 'm2',
+     xlab = 'Gelman-Rubin PSRF',
+     ylab = 'Frequency')
+
+abline(v = 1.1,
+       lty = 2)
+
+#m3
+hist(gelman_beta_m3,
+     breaks = gelman_breaks,
+     xlim = gelman_xlim,
+     ylim = gelman_ylim,
+     yaxs = 'i',
+     main = 'm3',
+     xlab = 'Gelman-Rubin PSRF',
+     ylab = 'Frequency')
+
+abline(v = 1.1,
+       lty = 2)
+
+#m3_long
+hist(gelman_beta_m3_long,
+     breaks = gelman_breaks,
+     xlim = gelman_xlim,
+     ylim = gelman_ylim,
+     yaxs = 'i',
+     main = 'm3_long',
+     xlab = 'Gelman-Rubin PSRF',
+     ylab = 'Frequency')
+
+abline(v = 1.1,
+       lty = 2)
+
+dev.off()
+
+#reset layout
+par(mfrow = c(1, 1))
+
+
+
 #############################
 ### Notes for discussion  ###
 #############################
@@ -2876,7 +3446,7 @@ par(mfrow = c(1, 1))
 #
 #7. What would be the clearest biological question for this dataset:
 #
-#community response to egret predation pressure?
+#community response to egret abundance/activity?
 #species-specific vulnerability to egret predation?
 #residual associations after accounting for predator pressure?
 #comparison between observed egret diet and reptile community composition?
