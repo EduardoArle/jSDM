@@ -1540,6 +1540,9 @@ layout(1)
 #
 #change after removing these taxa
 
+#make sure Y_m3 is a matrix
+Y_m3 <- as.matrix(Y_m3)
+
 m3 <- Hmsc(Y = Y_m3,
            XData = XScaled,
            XFormula = XFormula,
@@ -1674,33 +1677,6 @@ ess_beta_m3_long <- effectiveSize(mpost3_long$Beta)
 #check Gelman diagnostics for beta parameters
 gelman.diag(mpost3_long$Beta, multivariate = FALSE)
 
-#plot comparison fig
-
-#shared x-axis range
-ess_xlim_long <- c(0, 1500)
-
-#plot ESS comparison
-par(mfrow = c(1, 2),
-    mar = c(5, 5, 3, 1))
-
-#ESS histogram m3
-hist(ess_beta_m3,
-     breaks = seq(0, 1500, by = 50),
-     xlim = ess_xlim_long,
-     main = 'm3',
-     xlab = 'ESS',
-     ylab = 'Frequency')
-
-#ESS histogram m3_long
-hist(ess_beta_m3_long,
-     breaks = seq(0, 1500, by = 50),
-     xlim = ess_xlim_long,
-     main = 'm3_long',
-     xlab = 'ESS',
-     ylab = 'Frequency')
-
-#reset plotting layout
-par(mfrow = c(1, 1))
 
 
 ################################
@@ -1938,7 +1914,7 @@ par(mar = c(8, 5, 2, 1))
 barplot(species_prev,
         las = 2,
         ylab = 'Occupied sites',
-        main = 'Retained reptile taxa')
+        main = 'Retained community taxa')
 
 abline(h = 10,
        lty = 2)
@@ -2023,7 +1999,7 @@ layout(1)
 ########################################################
 
 
-
+setwd(wd_plots)
 #save raw species-environment association heatmap
 png('raw_species_environment_correlations.png',
     width = 2200,
@@ -2036,12 +2012,17 @@ layout(matrix(c(1, 2), nrow = 1),
 #main heatmap
 par(mar = c(10, 10, 3, 1))
 
-image(t(species_env_cor_plot),
+image(t(species_env_cor_plot[nrow(species_env_cor_plot):1, ]),
       axes = FALSE,
       col = species_env_cols,
       zlim = c(-species_env_zlim,
                species_env_zlim),
       main = 'Raw species-environment associations')
+
+add_matrix_values(species_env_cor_plot,
+                  digits = 2,
+                  cex = 0.45,
+                  threshold = 0.4)
 
 #species names
 axis(1,
@@ -2122,21 +2103,28 @@ layout(matrix(c(1, 2), nrow = 1),
 
 par(mar = c(10, 10, 3, 1))
 
-image(t(postBeta_m1$mean),
+beta_plot_m1 <- t(postBeta_m1$mean)
+
+image(t(beta_plot_m1[nrow(beta_plot_m1):1, ]),
       axes = FALSE,
       col = beta_cols,
       zlim = c(-beta_zlim, beta_zlim),
       main = 'Community-wide environmental responses')
 
+add_matrix_values(beta_plot_m1,
+                  digits = 2,
+                  cex = 0.45,
+                  threshold = 1.5)
+
 axis(1,
-     at = seq(0, 1, length.out = ncol(postBeta_m1$mean)),
-     labels = colnames(postBeta_m1$mean),
+     at = seq(0, 1, length.out = ncol(beta_plot_m1)),
+     labels = colnames(beta_plot_m1),
      las = 2,
      cex.axis = 0.7)
 
 axis(2,
-     at = seq(0, 1, length.out = length(pred_names)),
-     labels = rev(pred_names),
+     at = seq(0, 1, length.out = nrow(beta_plot_m1)),
+     labels = rev(rownames(beta_plot_m1)),
      las = 2,
      cex.axis = 0.8)
 
@@ -2176,21 +2164,28 @@ layout(matrix(c(1, 2), nrow = 1),
 
 par(mar = c(10, 10, 3, 1))
 
-image(t(postBeta_m2$mean),
+beta_plot_m2 <- t(postBeta_m2$mean)
+
+image(t(beta_plot_m2[nrow(beta_plot_m2):1, ]),
       axes = FALSE,
       col = beta_cols,
       zlim = c(-beta_zlim, beta_zlim),
       main = 'Community-wide environmental responses')
 
+add_matrix_values(beta_plot_m2,
+                  digits = 2,
+                  cex = 0.45,
+                  threshold = 1.5)
+
 axis(1,
-     at = seq(0, 1, length.out = ncol(postBeta_m2$mean)),
-     labels = colnames(postBeta_m2$mean),
+     at = seq(0, 1, length.out = ncol(beta_plot_m2)),
+     labels = colnames(beta_plot_m2),
      las = 2,
      cex.axis = 0.7)
 
 axis(2,
-     at = seq(0, 1, length.out = length(pred_names)),
-     labels = rev(pred_names),
+     at = seq(0, 1, length.out = nrow(beta_plot_m2)),
+     labels = rev(rownames(beta_plot_m2)),
      las = 2,
      cex.axis = 0.8)
 
@@ -2217,6 +2212,7 @@ dev.off()
 
 layout(1)
 
+
 #save beta matrix m3 plot for discussion slides
 png('beta_matrix_heatmap_m3.png',
     width = 2200,
@@ -2240,21 +2236,31 @@ layout(matrix(c(1, 2), nrow = 1),
 
 par(mar = c(10, 10, 3, 1))
 
-image(t(postBeta_m3$mean),
+beta_plot_m3 <- t(postBeta_m3$mean)
+
+image(t(beta_plot_m3[nrow(beta_plot_m3):1, ]),
       axes = FALSE,
       col = beta_cols,
-      zlim = c(-beta_zlim_m1_m2_m3, beta_zlim_m1_m2_m3),
+      zlim = c(-beta_zlim_m1_m2_m3,
+               beta_zlim_m1_m2_m3),
       main = 'Community-wide environmental responses')
 
+add_matrix_values(beta_plot_m3,
+                  digits = 2,
+                  cex = 0.45,
+                  threshold = 1.5)
+
 axis(1,
-     at = seq(0, 1, length.out = ncol(postBeta_m3$mean)),
-     labels = colnames(postBeta_m3$mean),
+     at = seq(0, 1,
+              length.out = ncol(beta_plot_m3)),
+     labels = colnames(beta_plot_m3),
      las = 2,
      cex.axis = 0.7)
 
 axis(2,
-     at = seq(0, 1, length.out = length(pred_names)),
-     labels = rev(pred_names),
+     at = seq(0, 1,
+              length.out = nrow(beta_plot_m3)),
+     labels = rev(rownames(beta_plot_m3)),
      las = 2,
      cex.axis = 0.8)
 
