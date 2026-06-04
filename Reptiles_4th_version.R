@@ -11,8 +11,8 @@ library(Hmsc)
 
 #list WDs
 wd_data <- '/Users/carloseduardoaribeiro/Documents/Post-doc_2/Data'
-wd_models <- '/Users/carloseduardoaribeiro/Documents/Post-doc_2/Egret_reptile_3rd_models'
-wd_plots <- '/Users/carloseduardoaribeiro/Documents/Post-doc_2/Egret_reptile_3rd_models/Plots'
+wd_models <- '/Users/carloseduardoaribeiro/Documents/Post-doc_2/Egret_reptile_4th_models'
+wd_plots <- '/Users/carloseduardoaribeiro/Documents/Post-doc_2/Egret_reptile_4th_models/Plots'
 
 #load main reptile table
 setwd(wd_data)
@@ -484,11 +484,11 @@ coords <- as.matrix(reptiles[, c('Lon_sample', 'Lat_sample')])
 #
 #this is essential because HMSC needs to know which coordinates belong
 #to which sampling unit
-rownames(coords) <- levels(studyDesign$sample)
+rownames(coords) <- reptiles$Sample
 
 #check matching
 head(rownames(coords))
-head(levels(studyDesign$sample))
+head(reptiles$Sample)
 
 #create spatial random level again
 rL.site <- HmscRandomLevel(sData = coords)
@@ -497,15 +497,15 @@ rL.site <- HmscRandomLevel(sData = coords)
 m2 <- Hmsc(Y = Y,
            XData = XScaled,
            XFormula = XFormula,
-           distr = 'poisson',
+           distr = 'lognormal poisson',
            studyDesign = studyDesign,
            ranLevels = list(sample = rL.site))
 
 #inspect model
 m2
 
-
-
+           
+           
 ############################
 ### First HMSC model     ###
 ############################
@@ -536,8 +536,9 @@ m2
 m1 <- Hmsc(Y = Y,
            XData = XScaled,
            XFormula = XFormula,
-           distr = 'poisson',
+           distr = 'lognormal poisson',
            studyDesign = studyDesign)
+
 
 #inspect model object
 m1
@@ -960,61 +961,6 @@ mtext('Posterior mean beta',
 
 
 #############################
-### Spatial random level  ###
-#############################
-
-
-
-#create coordinate matrix
-#
-#rows = sampling sites
-#columns = spatial coordinates
-#
-#these coordinates will allow HMSC to model spatial latent structure
-coords <- as.matrix(reptiles[, c('Lon_sample',
-                                 'Lat_sample')])
-
-#inspect first rows
-head(coords)
-
-#create spatial random level
-#
-#this allows the model to estimate latent spatial structure among sites
-#
-#conceptually:
-#
-#sites that are geographically close may resemble each other
-#for reasons not fully captured by the measured predictors
-#
-#the latent variables attempt to capture this residual spatial structure
-rL.site <- HmscRandomLevel(sData = coords)
-
-#important conceptual point:
-#
-#we are NOT explicitly telling the model:
-#
-#"these species interact"
-#
-#instead, we are allowing the model to estimate residual structure
-#among sites after accounting for measured environmental predictors
-#
-#this residual structure may reflect:
-#
-#missing predictors
-#spatial autocorrelation
-#species interactions
-#shared habitat preferences
-#sampling artefacts
-#or combinations of these
-#
-#therefore, latent variables should be interpreted cautiously
-#
-#they are extremely useful statistically
-#but often ambiguous biologically
-
-
-
-#############################
 ### Latent-variable model ###
 #############################
 
@@ -1032,7 +978,7 @@ rL.site <- HmscRandomLevel(sData = coords)
 m2 <- Hmsc(Y = Y,
            XData = XScaled,
            XFormula = XFormula,
-           distr = 'poisson',
+           distr = 'lognormal poisson',
            studyDesign = studyDesign,
            ranLevels = list(sample = rL.site))
 
@@ -1546,7 +1492,7 @@ Y_m3 <- as.matrix(Y_m3)
 m3 <- Hmsc(Y = Y_m3,
            XData = XScaled,
            XFormula = XFormula,
-           distr = 'poisson',
+           distr = 'lognormal poisson',
            studyDesign = studyDesign,
            ranLevels = list(sample = rL.site))
 
@@ -1638,47 +1584,6 @@ hist(ess_beta_m3,
 
 
 
-##############################
-### Fit longer clean model ###
-##############################
-
-
-
-#fit longer version of m3
-#
-#m3_long uses the same structure as m3
-#but longer chains, stronger thinning, and longer burn-in
-#
-#goal:
-#test whether remaining convergence issues improve with longer sampling
-
-m3_long <- sampleMcmc(m3,
-                      samples = 3000,
-                      thin = 20,
-                      transient = 3000,
-                      nChains = 4,
-                      verbose = 1000)
-
-#setwd
-setwd(wd_models)
-
-#save longer clean latent-variable model
-saveRDS(m3_long, 'm3_long_clean_spatial_latent.rds')
-
-#convert posterior samples to coda objects
-mpost3_long <- convertToCodaObject(m3_long)
-
-#save posterior diagnostic object
-saveRDS(mpost3_long, 'mpost_m3_long_clean_spatial_latent.rds')
-
-#extract effective sample sizes for beta parameters
-ess_beta_m3_long <- effectiveSize(mpost3_long$Beta)
-
-#check Gelman diagnostics for beta parameters
-gelman.diag(mpost3_long$Beta, multivariate = FALSE)
-
-
-
 ################################
 ### Residual associations m3 ###
 ################################
@@ -1733,6 +1638,49 @@ omega_zlim_m3 <- max(abs(Omega_plot_m3),
 omega_legend_vals_m3 <- seq(-omega_zlim_m3,
                             omega_zlim_m3,
                             length.out = 100)
+
+
+
+
+##############################
+### Fit longer clean model ###
+##############################
+
+
+
+#fit longer version of m3
+#
+#m3_long uses the same structure as m3
+#but longer chains, stronger thinning, and longer burn-in
+#
+#goal:
+#test whether remaining convergence issues improve with longer sampling
+
+m3_long <- sampleMcmc(m3,
+                      samples = 3000,
+                      thin = 20,
+                      transient = 3000,
+                      nChains = 4,
+                      verbose = 1000)
+
+#setwd
+setwd(wd_models)
+
+#save longer clean latent-variable model
+saveRDS(m3_long, 'm3_long_clean_spatial_latent.rds')
+
+#convert posterior samples to coda objects
+mpost3_long <- convertToCodaObject(m3_long)
+
+#save posterior diagnostic object
+saveRDS(mpost3_long, 'mpost_m3_long_clean_spatial_latent.rds')
+
+#extract effective sample sizes for beta parameters
+ess_beta_m3_long <- effectiveSize(mpost3_long$Beta)
+
+#check Gelman diagnostics for beta parameters
+gelman.diag(mpost3_long$Beta, multivariate = FALSE)
+
 
 
 
@@ -2049,8 +1997,6 @@ mtext('Spearman correlation',
 
 dev.off()
 
-layout(1)
-
 
 
 #########################################
@@ -2135,8 +2081,6 @@ mtext('Posterior mean beta',
 
 dev.off()
 
-layout(1)
-
 
 
 #save beta matrix m2 plot for discussion slides
@@ -2196,7 +2140,7 @@ mtext('Posterior mean beta',
 
 dev.off()
 
-layout(1)
+
 
 
 #save beta matrix m3 plot for discussion slides
@@ -2271,7 +2215,6 @@ mtext('Posterior mean beta',
 
 dev.off()
 
-layout(1)
 
 
 
@@ -2338,8 +2281,6 @@ mtext('Residual association',
 
 dev.off()
 
-layout(1)
-
 
 
 ######################################
@@ -2405,7 +2346,6 @@ mtext('Residual association',
 
 dev.off()
 
-layout(1)
 
 
 
@@ -2588,7 +2528,6 @@ mtext('Change in residual association',
 
 dev.off()
 
-layout(1)
 
 
 
@@ -3149,3 +3088,135 @@ par(mfrow = c(1, 1))
 
 
 
+
+
+####################### REPETITIONS ############################
+
+
+############################
+### Replicate m3: rep2   ###
+############################
+
+m3_rep2 <- Hmsc(Y = Y_m3,
+                XData = XScaled,
+                XFormula = XFormula,
+                distr = 'lognormal poisson',
+                studyDesign = studyDesign,
+                ranLevels = list(sample = rL.site))
+
+m3_rep2 <- sampleMcmc(m3_rep2,
+                      samples = 1000,
+                      thin = 10,
+                      transient = 1000,
+                      nChains = 4,
+                      verbose = 1000)
+
+#setwd
+setwd(wd_models)
+
+#save model
+saveRDS(m3_rep2,
+        'm3_rep2_clean_spatial_latent.rds')
+
+#convert to coda
+mpost3_rep2 <- convertToCodaObject(m3_rep2)
+
+#save diagnostics object
+saveRDS(mpost3_rep2,
+        'mpost_m3_rep2_clean_spatial_latent.rds')
+
+#save beta estimates
+postBeta_m3_rep2 <- getPostEstimate(m3_rep2,
+                                    parName = 'Beta')
+
+saveRDS(postBeta_m3_rep2,
+        'postBeta_m3_rep2_clean_spatial_latent.rds')
+
+#save residual associations
+Omega_m3_rep2 <- computeAssociations(m3_rep2)
+
+saveRDS(Omega_m3_rep2,
+        'Omega_m3_rep2_clean_spatial_latent.rds')
+
+
+
+####prepare stuff for plotting
+Omega_m3_rep2 <- computeAssociations(m3_rep2)
+
+Omega_mean_m3_rep2 <- Omega_m3_rep2[[1]]$mean
+Omega_support_m3_rep2 <- Omega_m3_rep2[[1]]$support
+
+Omega_plot_m3_rep2 <- Omega_mean_m3_rep2
+
+Omega_plot_m3_rep2[upper.tri(Omega_plot_m3_rep2,
+                             diag = FALSE)] <- NA
+
+omega_zlim_m3_rep2 <- max(abs(Omega_plot_m3_rep2),
+                          na.rm = TRUE)
+
+omega_legend_vals_m3_rep2 <- seq(-omega_zlim_m3_rep2,
+                                 omega_zlim_m3_rep2,
+                                 length.out = 100)
+###########################################
+### Save Omega m3_rep2 plot for slides  ###
+###########################################
+
+setwd(wd_plots)
+#save residual association plot for m3_rep2
+png('omega_residual_species_associations_m3_rep2.png',
+    width = 2200,
+    height = 1400,
+    res = 200)
+
+layout(matrix(c(1, 2), nrow = 1),
+       widths = c(5, 1))
+
+#main Omega heatmap
+par(mar = c(8, 8, 3, 1))
+
+image(t(Omega_plot_m3_rep2[nrow(Omega_plot_m3_rep2):1, ]),
+      axes = FALSE,
+      col = omega_cols,
+      zlim = c(-omega_zlim_m3_rep2, omega_zlim_m3_rep2),
+      main = 'Residual species associations: m3 rep2')
+
+add_matrix_values(Omega_plot_m3_rep2,
+                  digits = 2,
+                  cex = 0.4,
+                  threshold = 0.5)
+
+axis(1,
+     at = seq(0, 1, length.out = ncol(Omega_plot_m3_rep2)),
+     labels = colnames(Omega_plot_m3_rep2),
+     las = 2,
+     cex.axis = 0.7)
+
+axis(2,
+     at = seq(0, 1, length.out = nrow(Omega_plot_m3_rep2)),
+     labels = rev(rownames(Omega_plot_m3_rep2)),
+     las = 2,
+     cex.axis = 0.7)
+
+#colour legend
+par(mar = c(6, 1, 2, 4))
+
+image(x = 1,
+      y = omega_legend_vals_m3_rep2,
+      z = matrix(omega_legend_vals_m3_rep2, nrow = 1),
+      col = omega_cols,
+      axes = FALSE,
+      xlab = '',
+      ylab = '')
+
+axis(4,
+     las = 2,
+     cex.axis = 0.8)
+
+mtext('Residual association',
+      side = 4,
+      line = 2.8,
+      cex = 0.9)
+
+dev.off()
+
+layout(1)
