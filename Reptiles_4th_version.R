@@ -1367,6 +1367,12 @@ dim(Omega_mean)
 round(Omega_mean[1:5, 1:5], 2)
 round(Omega_support[1:5, 1:5], 2)
 
+#setwd
+setwd(wd_models)
+
+#save residual association object for m2 rep1
+saveRDS(Omega, 'Omega_m2_spatial_latent.rds')
+
 
 
 #########################
@@ -1614,6 +1620,12 @@ dim(Omega_mean_m3)
 #inspect first rows
 round(Omega_mean_m3[1:5, 1:5], 2)
 round(Omega_support_m3[1:5, 1:5], 2)
+
+#setwd
+setwd(wd_models)
+
+#save residual association object for m3 rep1
+saveRDS(Omega_m3, 'Omega_m3_clean_spatial_latent.rds')
 
 
 
@@ -3090,7 +3102,295 @@ par(mfrow = c(1, 1))
 
 
 
+
+
+
+
+
+
+
 ####################### REPETITIONS ############################
+
+
+
+
+
+############################
+### Replicate m2: rep2   ###
+############################
+
+#create latent-variable HMSC model
+m2_rep2 <- Hmsc(Y = Y,
+                XData = XScaled,
+                XFormula = XFormula,
+                distr = 'lognormal poisson',
+                studyDesign = studyDesign,
+                ranLevels = list(sample = rL.site))
+
+#run MCMC
+m2_rep2 <- sampleMcmc(m2_rep2,
+                      samples = 1000,
+                      thin = 10,
+                      transient = 1000,
+                      nChains = 4,
+                      verbose = 1000)
+
+#set working directory
+setwd(wd_models)
+
+#save model
+saveRDS(m2_rep2,
+        'm2_rep2_spatial_latent.rds')
+
+#convert to coda
+mpost2_rep2 <- convertToCodaObject(m2_rep2)
+
+#save diagnostics object
+saveRDS(mpost2_rep2,
+        'mpost_m2_rep2_spatial_latent.rds')
+
+#save beta estimates
+postBeta_m2_rep2 <- getPostEstimate(m2_rep2,
+                                    parName = 'Beta')
+
+saveRDS(postBeta_m2_rep2,
+        'postBeta_m2_rep2_spatial_latent.rds')
+
+#save residual associations
+Omega_m2_rep2 <- computeAssociations(m2_rep2)
+
+saveRDS(Omega_m2_rep2,
+        'Omega_m2_rep2_spatial_latent.rds')
+
+
+
+####prepare stuff for plotting
+Omega_m2_rep2 <- computeAssociations(m2_rep2)
+
+Omega_mean_m2_rep2 <- Omega_m2_rep2[[1]]$mean
+Omega_support_m2_rep2 <- Omega_m2_rep2[[1]]$support
+
+Omega_plot_m2_rep2 <- Omega_mean_m2_rep2
+
+Omega_plot_m2_rep2[upper.tri(Omega_plot_m2_rep2,
+                             diag = FALSE)] <- NA
+
+omega_zlim_m2_rep2 <- max(abs(Omega_plot_m2_rep2),
+                          na.rm = TRUE)
+
+omega_legend_vals_m2_rep2 <- seq(-omega_zlim_m2_rep2,
+                                 omega_zlim_m2_rep2,
+                                 length.out = 100)
+
+
+###########################################
+### Save Omega m3_rep2 plot for slides  ###
+###########################################
+
+
+
+setwd(wd_plots)
+#save residual association plot for m2_rep2
+png('omega_residual_species_associations_m2_rep2.png',
+    width = 2200,
+    height = 1400,
+    res = 200)
+
+layout(matrix(c(1, 2), nrow = 1),
+       widths = c(5, 1))
+
+#main Omega heatmap
+par(mar = c(8, 8, 3, 1))
+
+image(t(Omega_plot_m2_rep2[nrow(Omega_plot_m2_rep2):1, ]),
+      axes = FALSE,
+      col = omega_cols,
+      zlim = c(-omega_zlim_m2_rep2, omega_zlim_m2_rep2),
+      main = 'Residual species associations: m2 rep2')
+
+add_matrix_values(Omega_plot_m2_rep2,
+                  digits = 2,
+                  cex = 0.4,
+                  threshold = 0.5)
+
+axis(1,
+     at = seq(0, 1, length.out = ncol(Omega_plot_m2_rep2)),
+     labels = colnames(Omega_plot_m2_rep2),
+     las = 2,
+     cex.axis = 0.7)
+
+axis(2,
+     at = seq(0, 1, length.out = nrow(Omega_plot_m2_rep2)),
+     labels = rev(rownames(Omega_plot_m2_rep2)),
+     las = 2,
+     cex.axis = 0.7)
+
+#colour legend
+par(mar = c(6, 1, 2, 4))
+
+image(x = 1,
+      y = omega_legend_vals_m2_rep2,
+      z = matrix(omega_legend_vals_m2_rep2, nrow = 1),
+      col = omega_cols,
+      axes = FALSE,
+      xlab = '',
+      ylab = '')
+
+axis(4,
+     las = 2,
+     cex.axis = 0.8)
+
+mtext('Residual associations: m2 rep2',
+      side = 4,
+      line = 2.8,
+      cex = 0.9)
+
+dev.off()
+
+layout(1)
+
+
+
+
+
+
+############################
+### Replicate m2: rep3   ###
+############################
+
+#create latent-variable HMSC model
+m2_rep3 <- Hmsc(Y = Y,
+                XData = XScaled,
+                XFormula = XFormula,
+                distr = 'lognormal poisson',
+                studyDesign = studyDesign,
+                ranLevels = list(sample = rL.site))
+
+#run MCMC
+m2_rep3 <- sampleMcmc(m2_rep3,
+                      samples = 1000,
+                      thin = 10,
+                      transient = 1000,
+                      nChains = 4,
+                      verbose = 1000)
+
+#set working directory
+setwd(wd_models)
+
+#save model
+saveRDS(m2_rep3,
+        'm2_rep3_spatial_latent.rds')
+
+#convert to coda
+mpost2_rep3 <- convertToCodaObject(m2_rep3)
+
+#save diagnostics object
+saveRDS(mpost2_rep3,
+        'mpost_m2_rep3_spatial_latent.rds')
+
+#save beta estimates
+postBeta_m2_rep3 <- getPostEstimate(m2_rep3,
+                                    parName = 'Beta')
+
+saveRDS(postBeta_m2_rep3,
+        'postBeta_m2_rep3_spatial_latent.rds')
+
+#save residual associations
+Omega_m2_rep3 <- computeAssociations(m2_rep3)
+
+saveRDS(Omega_m2_rep3,
+        'Omega_m2_rep3_spatial_latent.rds')
+
+
+####prepare stuff for plotting
+Omega_m2_rep3 <- computeAssociations(m2_rep3)
+
+Omega_mean_m2_rep3 <- Omega_m2_rep3[[1]]$mean
+Omega_support_m2_rep3 <- Omega_m2_rep3[[1]]$support
+
+Omega_plot_m2_rep3 <- Omega_mean_m2_rep3
+
+Omega_plot_m2_rep3[upper.tri(Omega_plot_m2_rep3,
+                             diag = FALSE)] <- NA
+
+omega_zlim_m2_rep3 <- max(abs(Omega_plot_m2_rep3),
+                          na.rm = TRUE)
+
+omega_legend_vals_m2_rep3 <- seq(-omega_zlim_m2_rep3,
+                                 omega_zlim_m2_rep3,
+                                 length.out = 100)
+
+
+###########################################
+### Save Omega m3_rep2 plot for slides  ###
+###########################################
+
+
+
+setwd(wd_plots)
+#save residual association plot for m2_rep2
+png('omega_residual_species_associations_m2_rep3.png',
+    width = 2200,
+    height = 1400,
+    res = 200)
+
+layout(matrix(c(1, 2), nrow = 1),
+       widths = c(5, 1))
+
+#main Omega heatmap
+par(mar = c(8, 8, 3, 1))
+
+image(t(Omega_plot_m2_rep3[nrow(Omega_plot_m2_rep3):1, ]),
+      axes = FALSE,
+      col = omega_cols,
+      zlim = c(-omega_zlim_m2_rep3, omega_zlim_m2_rep3),
+      main = 'Residual species associations: m2 rep3')
+
+add_matrix_values(Omega_plot_m2_rep3,
+                  digits = 2,
+                  cex = 0.4,
+                  threshold = 0.5)
+
+axis(1,
+     at = seq(0, 1, length.out = ncol(Omega_plot_m2_rep3)),
+     labels = colnames(Omega_plot_m2_rep3),
+     las = 2,
+     cex.axis = 0.7)
+
+axis(2,
+     at = seq(0, 1, length.out = nrow(Omega_plot_m2_rep3)),
+     labels = rev(rownames(Omega_plot_m2_rep3)),
+     las = 2,
+     cex.axis = 0.7)
+
+#colour legend
+par(mar = c(6, 1, 2, 4))
+
+image(x = 1,
+      y = omega_legend_vals_m2_rep3,
+      z = matrix(omega_legend_vals_m2_rep3, nrow = 1),
+      col = omega_cols,
+      axes = FALSE,
+      xlab = '',
+      ylab = '')
+
+axis(4,
+     las = 2,
+     cex.axis = 0.8)
+
+mtext('Residual associations: m2 rep3',
+      side = 4,
+      line = 2.8,
+      cex = 0.9)
+
+dev.off()
+
+layout(1)
+
+
+
+
+
 
 
 ############################
@@ -3157,9 +3457,13 @@ omega_zlim_m3_rep2 <- max(abs(Omega_plot_m3_rep2),
 omega_legend_vals_m3_rep2 <- seq(-omega_zlim_m3_rep2,
                                  omega_zlim_m3_rep2,
                                  length.out = 100)
+
+
 ###########################################
 ### Save Omega m3_rep2 plot for slides  ###
 ###########################################
+
+
 
 setwd(wd_plots)
 #save residual association plot for m3_rep2
@@ -3210,6 +3514,147 @@ image(x = 1,
 
 axis(4,
      las = 2,
+     cex.axis = 0.8)
+
+mtext('Residual association',
+      side = 4,
+      line = 2.8,
+      cex = 0.9)
+
+dev.off()
+
+layout(1)
+
+
+
+
+############################
+### Replicate m3: rep3   ###
+############################
+
+
+
+m3_rep3 <- Hmsc(Y = Y_m3,
+                XData = XScaled,
+                XFormula = XFormula,
+                distr = 'lognormal poisson',
+                studyDesign = studyDesign,
+                ranLevels = list(sample = rL.site))
+
+m3_rep3 <- sampleMcmc(m3_rep3,
+                      samples = 1000,
+                      thin = 10,
+                      transient = 1000,
+                      nChains = 4,
+                      verbose = 1000)
+
+#setwd
+setwd(wd_models)
+
+#save model
+saveRDS(m3_rep3,
+        'm3_rep3_clean_spatial_latent.rds')
+
+#convert to coda
+mpost3_rep3 <- convertToCodaObject(m3_rep3)
+
+#save diagnostics object
+saveRDS(mpost3_rep3,
+        'mpost_m3_rep3_clean_spatial_latent.rds')
+
+#save beta estimates
+postBeta_m3_rep3 <- getPostEstimate(m3_rep3,
+                                    parName = 'Beta')
+
+saveRDS(postBeta_m3_rep3,
+        'postBeta_m3_rep3_clean_spatial_latent.rds')
+
+#save residual associations
+Omega_m3_rep3 <- computeAssociations(m3_rep3)
+
+saveRDS(Omega_m3_rep3,
+        'Omega_m3_rep3_clean_spatial_latent.rds')
+
+
+
+
+
+####prepare stuff for plotting
+Omega_m3_rep3 <- computeAssociations(m3_rep3)
+
+Omega_mean_m3_rep3 <- Omega_m3_rep3[[1]]$mean
+Omega_support_m3_rep3 <- Omega_m3_rep3[[1]]$support
+
+Omega_plot_m3_rep3 <- Omega_mean_m3_rep3
+
+Omega_plot_m3_rep3[upper.tri(Omega_plot_m3_rep3,
+                             diag = FALSE)] <- NA
+
+omega_zlim_m3_rep3 <- max(abs(Omega_plot_m3_rep3),
+                          na.rm = TRUE)
+
+omega_legend_vals_m3_rep3 <- seq(-omega_zlim_m3_rep3,
+                                 omega_zlim_m3_rep3,
+                                 length.out = 100)
+
+
+
+###########################################
+### Save Omega m3_rep3 plot for slides  ###
+###########################################
+
+
+
+setwd(wd_plots)
+
+#save residual association plot for m3_rep3
+png('omega_residual_species_associations_m3_rep3.png',
+    width = 2200,
+    height = 1400,
+    res = 200)
+
+layout(matrix(c(1, 2), nrow = 1),
+       widths = c(5, 1))
+
+#main Omega heatmap
+par(mar = c(8, 8, 3, 1))
+
+image(t(Omega_plot_m3_rep3[nrow(Omega_plot_m3_rep3):1, ]),
+      axes = FALSE,
+      col = omega_cols,
+      zlim = c(-omega_zlim_m3_rep3, omega_zlim_m3_rep3),
+      main = 'Residual species associations: m3 rep3')
+
+add_matrix_values(Omega_plot_m3_rep3,
+                  digits = 2,
+                  cex = 0.4,
+                  threshold = 0.5)
+
+axis(1,
+     at = seq(0, 1, length.out = ncol(Omega_plot_m3_rep3)),
+     labels = colnames(Omega_plot_m3_rep3),
+     las = 2,
+     cex.axis = 0.7)
+
+axis(2,
+     at = seq(0, 1, length.out = nrow(Omega_plot_m3_rep3)),
+     labels = rev(rownames(Omega_plot_m3_rep3)),
+     las = 2,
+     cex.axis = 0.7)
+
+#colour legend
+par(mar = c(6, 1, 2, 4))
+
+image(x = 1,
+      y = omega_legend_vals_m3_rep3,
+      z = matrix(omega_legend_vals_m3_rep3, nrow = 1),
+      col = omega_cols,
+      axes = FALSE,
+      xlab = '',
+      ylab = '')
+
+axis(4,
+     EKYSA2,H56
      cex.axis = 0.8)
 
 mtext('Residual association',
