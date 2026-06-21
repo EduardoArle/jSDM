@@ -84,6 +84,53 @@ extract_model_settings <- function(file_name){
                     rep = rep))
 }
 
+#function to calculate ESS summary
+calculate_ESS_summary <- function(ess_values){
+  
+  #summarise ESS values
+  ess_summary <- data.frame(ess_min = min(ess_values),
+                            ess_q1 = quantile(ess_values, 0.25),
+                            ess_median = median(ess_values),
+                            ess_mean = mean(ess_values),
+                            ess_q3 = quantile(ess_values, 0.75),
+                            ess_max = max(ess_values))
+  
+  #return summary
+  return(ess_summary)
+}
+
+#function to calculate relative ESS
+calculate_relative_ESS <- function(ess_summary,
+                                   max_ESS){
+  
+  #calculate relative ESS metrics
+  ess_summary$relative_ess_min <- ess_summary$ess_min / max_ESS
+  
+  ess_summary$relative_ess_q1 <- ess_summary$ess_q1 / max_ESS
+  
+  ess_summary$relative_ess_median <- ess_summary$ess_median / max_ESS
+  
+  ess_summary$relative_ess_mean <- ess_summary$ess_mean / max_ESS
+  
+  ess_summary$relative_ess_q3 <- ess_summary$ess_q3 / max_ESS
+  
+  ess_summary$relative_ess_max <- ess_summary$ess_max / max_ESS
+  
+  #return table
+  return(ess_summary)
+}
+
+#function to prepare ESS output for slides
+prepare_ESS_slide_output <- function(ess_summary,
+                                     max_ESS){
+  
+  #create simplified ESS table
+  ess_output <- data.frame(ess_median = ess_summary$ess_median,
+               relative_ess_median = ess_summary$ess_median / max_ESS)
+  
+  #return table
+  return(ess_output)
+}
 
 
 #################################
@@ -156,3 +203,89 @@ mpost_metadata[, c('model',
                    'samples',
                    'nChains',
                    'max_ESS')]
+
+
+
+#############################################
+###  Calculate ESS for all model outputs  ###
+#############################################
+
+
+#empty object to store ESS results
+ess_results <- data.frame()
+
+
+#loop over mpost files
+for(i in 1:nrow(mpost_metadata)){
+  
+  #load mpost object
+  mpost_i <- readRDS(mpost_metadata$file_name[i])
+  
+  #calculate maximum possible ESS
+  max_ESS_i <- mpost_metadata$max_ESS[i]
+  
+  
+  ##################
+  ###  Beta ESS  ###
+  ##################
+  
+  
+  #calculate Beta ESS
+  beta_ess <- effectiveSize(mpost_i$Beta)
+  
+  #summarise Beta ESS
+  beta_summary <- calculate_ESS_summary(beta_ess)
+  
+  #prepare Beta output
+  beta_output <- prepare_ESS_slide_output(beta_summary,
+                                          max_ESS = max_ESS_i)
+  
+
+  ###################
+  ###  Omega ESS  ###
+  ###################
+  
+  
+  #calculate Omega ESS
+  omega_ess <- effectiveSize(mpost_i$Omega[[1]])
+  
+  #summarise Omega ESS
+  omega_summary <- calculate_ESS_summary(omega_ess)
+  
+  #prepare Omega output
+  omega_output <- prepare_ESS_slide_output(omega_summary,
+                                           max_ESS = max_ESS_i)
+  
+  
+  ########################
+  ###  Store results   ###
+  ########################
+  
+  
+  #store results
+  ess_results <- rbind(ess_results,
+                       data.frame(model = mpost_metadata$model[i],
+                                  rep = mpost_metadata$rep[i],
+                                  samples = mpost_metadata$samples[i],
+                                  transient = mpost_metadata$transient[i],
+                                  thin = mpost_metadata$thin[i],
+                                  nChains = mpost_metadata$nChains[i],
+                                  max_ESS = max_ESS_i,
+                                  beta_median_ESS = beta_output$ess_median,
+                                  beta_relative_median_ESS = beta_output$relative_ess_median,
+                                  omega_median_ESS = omega_output$ess_median,
+                                  omega_relative_median_ESS = omega_output$relative_ess_median))
+}
+
+#inspect results
+ess_results
+
+#setwd
+setwd(wd_ess_diagnostics)
+
+#save ESS results
+write.csv(ess_results,
+          'ESS_diagnostics_all_models.csv',
+          row.names = FALSE)
+
+
