@@ -3,9 +3,6 @@
 ############################################
 
 
-#clean workspace
-rm(list = ls())
-
 #load packages
 library(Hmsc)
 

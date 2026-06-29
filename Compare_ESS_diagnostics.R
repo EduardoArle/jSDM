@@ -100,8 +100,7 @@ calculate_ESS_summary <- function(ess_values){
 }
 
 #function to calculate relative ESS
-calculate_relative_ESS <- function(ess_summary,
-                                   max_ESS){
+calculate_relative_ESS <- function(ess_summary, max_ESS){
   
   #calculate relative ESS metrics
   ess_summary$relative_ess_min <- ess_summary$ess_min / max_ESS
@@ -121,8 +120,7 @@ calculate_relative_ESS <- function(ess_summary,
 }
 
 #function to prepare ESS output for slides
-prepare_ESS_slide_output <- function(ess_summary,
-                                     max_ESS){
+prepare_ESS_slide_output <- function(ess_summary, max_ESS){
   
   #create simplified ESS table
   ess_output <- data.frame(ess_median = ess_summary$ess_median,
@@ -131,6 +129,33 @@ prepare_ESS_slide_output <- function(ess_summary,
   #return table
   return(ess_output)
 }
+
+#function to calculate Rhat summary
+calculate_Rhat_summary <- function(rhat_values){
+  
+  #summarise Rhat values
+  rhat_summary <- data.frame(rhat_min = min(rhat_values),
+                             rhat_q1 = quantile(rhat_values, 0.25),
+                             rhat_median = median(rhat_values),
+                             rhat_mean = mean(rhat_values),
+                             rhat_q3 = quantile(rhat_values, 0.75),
+                             rhat_max = max(rhat_values))
+  
+  #return summary
+  return(rhat_summary)
+}
+
+#function to prepare Rhat output for slides
+prepare_Rhat_slide_output <- function(rhat_summary){
+  
+  #create simplified Rhat table
+  rhat_output <- data.frame(rhat_median = rhat_summary$rhat_median,
+                            rhat_max = rhat_summary$rhat_max)
+  
+  #return table
+  return(rhat_output)
+}
+
 
 
 #################################
