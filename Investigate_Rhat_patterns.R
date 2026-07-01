@@ -289,8 +289,8 @@ plot_omega_rhat_species <- function(omega_rhat_all, species_name){
   #add legend
   legend('center', legend = c('Rep 1', 'Rep 2', 'Rep 3', 'Mean', 'Rhat = 1.1'),
          col = c(rep_cols, 'grey60', 'black'), lty = c(1, 1, 1, 1, 2),
-         lwd = c(1.5, 1.5, 1.5, 1.75, 1.5), bty = 'n', cex = 0.8,
-         y.intersp = 0.4)
+         lwd = c(1.5, 1.5, 1.5, 1.75, 1.5), bty = 'n', cex = 1,
+         y.intersp = 0.7)
   
   #add species title
   mtext(species_name, outer = TRUE, line = 1, cex = 1.4)

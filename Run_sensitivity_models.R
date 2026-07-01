@@ -31,19 +31,19 @@ names(reptiles)
 #model configuration label
 #
 #this label will be used in file names
-model_label <- 'clean_spatial_latent_3000samples_3000transient_10thin_4chains'
+model_label <- 'clean_spatial_latent_500samples_500transient_10thin_2chains'
 
 #MCMC settings
-samples <- 3000
+samples <- 1000
 
-transient <- 3000
+transient <- 1000
 
 thin <- 10
 
-nChains <- 4
+nChains <- 2
 
 #number of independent repetitions
-n_repetitions <- 3
+n_repetitions <- 10
 
 
 
@@ -192,7 +192,7 @@ m_base
 
 
 #loop over repetitions
-for(i in 2:n_repetitions){
+for(i in 4:n_repetitions){
   
   cat('\n')
   cat('=================================\n')

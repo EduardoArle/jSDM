@@ -265,10 +265,31 @@ for(i in 1:nrow(mpost_metadata)){
   beta_output <- prepare_ESS_slide_output(beta_summary,
                                           max_ESS = max_ESS_i)
   
+  
+  ###################
+  ###  Beta Rhat  ###
+  ###################
+  
+  
+  
+  #calculate Beta Rhat
+  beta_rhat <- gelman.diag(mpost_i$Beta, multivariate = FALSE)
+  
+  #extract Beta Rhat point estimates
+  beta_rhat_values <- beta_rhat$psrf[, 'Point est.']
+  
+  #summarise Beta Rhat
+  beta_rhat_summary <- calculate_Rhat_summary(beta_rhat_values)
+  
+  #prepare Beta Rhat output
+  beta_rhat_output <- prepare_Rhat_slide_output(beta_rhat_summary)
 
+  
+  
   ###################
   ###  Omega ESS  ###
   ###################
+  
   
   
   #calculate Omega ESS
@@ -278,8 +299,29 @@ for(i in 1:nrow(mpost_metadata)){
   omega_summary <- calculate_ESS_summary(omega_ess)
   
   #prepare Omega output
-  omega_output <- prepare_ESS_slide_output(omega_summary,
-                                           max_ESS = max_ESS_i)
+  omega_output <- prepare_ESS_slide_output(omega_summary, max_ESS = max_ESS_i)
+  
+  
+  
+  ####################
+  ###  Omega Rhat  ###
+  ####################
+  
+  
+  
+  #calculate Omega Rhat
+  omega_rhat <- gelman.diag(mpost_i$Omega[[1]],
+                            multivariate = FALSE)
+  
+  #extract Omega Rhat point estimates
+  omega_rhat_values <- omega_rhat$psrf[, 'Point est.']
+  
+  #summarise Omega Rhat
+  omega_rhat_summary <- calculate_Rhat_summary(omega_rhat_values)
+  
+  #prepare Omega Rhat output
+  omega_rhat_output <- prepare_Rhat_slide_output(omega_rhat_summary)
+  
   
   
   ########################
@@ -296,10 +338,16 @@ for(i in 1:nrow(mpost_metadata)){
                                   thin = mpost_metadata$thin[i],
                                   nChains = mpost_metadata$nChains[i],
                                   max_ESS = max_ESS_i,
-                                  beta_median_ESS = beta_output$ess_median,
-                                  beta_relative_median_ESS = beta_output$relative_ess_median,
-                                  omega_median_ESS = omega_output$ess_median,
-                                  omega_relative_median_ESS = omega_output$relative_ess_median))
+                 beta_median_ESS = beta_output$ess_median,
+                 beta_relative_median_ESS = beta_output$relative_ess_median,
+                 beta_median_Rhat = beta_rhat_output$rhat_median,
+                 beta_max_Rhat = beta_rhat_output$rhat_max,
+                 omega_median_ESS = omega_output$ess_median,
+                 omega_relative_median_ESS = omega_output$relative_ess_median,
+                 omega_median_Rhat = omega_rhat_output$rhat_median,
+                 omega_max_Rhat = omega_rhat_output$rhat_max))
+
+print(i)
 }
 
 #inspect results
